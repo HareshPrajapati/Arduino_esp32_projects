@@ -1,0 +1,1 @@
+{"type": "library", "name": "UDHttp", "version": "1.0.0+sha.ddb3574", "spec": {"owner": null, "id": null, "name": "esp32-upload-download-multipart-http", "requirements": null, "url": "git+https://github.com/nhatuan84/esp32-upload-download-multipart-http.git"}}
