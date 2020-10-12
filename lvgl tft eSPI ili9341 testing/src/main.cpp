@@ -825,8 +825,6 @@ bool downloadFile(const char * const fileURL) {
                     mySd.per = map(wb,0,mySd.totalLen,0,100);
                     currentPer = mySd.per;
                     Serial.printf("%d %%.... Downloaded \r\n",currentPer);
-
-
                     server.on("/", []() {
                       handleRoot();
                     });
