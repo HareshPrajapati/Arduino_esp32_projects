@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<script src="test.js"></script>
+<link rel="stylesheet" type="text/css" href="style.css">
+<title id="title">Web FileBrowser</title>
+<body>
+    <table>
+        <thead>
+        <tr class='header' id='theader'>
+        <th onclick = "sortTable(0)" >Name</th>
+        <th></th>
+        </tr>
+        </thead>
+        <tbody id='tbody'>
+        </tbody>
+    </table>
+        <hr>
+
+        <h1> Uploader</h1>
+        <form action='fupload' id='fupload'>
+        <input class='file-url' type='text' name='fupload' id = 'fupload'  size='60'  value=''>
+        <button class='buttons' style='margin-left:50px' type='submit'  onclick = "progress()"  >Upload </button></form><br>
+        <progress id="progressBar" value="0" max="100" style="width:300px;" ></progress>
+
+        <div id="demo">
+        <h1>The ESP32 Update web page without refresh</h1>
+        <button type="button" onclick="sendData(1)">LED ON</button>
+        <button type="button" onclick="sendData(0)">LED OFF</button><br>
+        </div>
+</body>
+</head>
+</html>

@@ -1,16 +1,19 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <SPI.h>
+#include <SPIFFS.h>
 #include <Ticker.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
+#include "webpages.h"
 #include "GUI.h"
-#include <Update.h>
-uint8_t fake_bar = 0;
+#include <ESPAsyncWebServer.h>
+#include <AsyncTCP.h>
 
 
 WebServer server(80);
+// AsyncWebServer server(80);
 
 #define TFT_BL (22)
 #define LED    (27)
@@ -23,90 +26,18 @@ TaskHandle_t task1, task2;
 String arg;
 int currentPer = 0;
 
-/* Constants */
-const char *const WIFI_SSDI = "Mikrotroniks";
-const char *const WIFI_PASS = "51251251";
-const char *host = "192.168.29.253";
-const char *header = "<!DOCTYPE html>"
-                     "<html>"
-                     "<head>"
-                     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-                     "<style>"
-                     "  h1 {"
-                     "font-family: Arial, Helvetica, sans-serif;"
-                     "    border-bottom: 1px solid #c0c0c0;"
-                     "    margin-bottom: 10px;"
-                     "    padding-bottom: 10px;"
-                     "    white-space: nowrap;"
-                     "  }"
-                     "body {"
-                     "    background-color: #ccffff;"
-                     "  }"
-                     "  table {"
-                     "font-family: Arial, Helvetica, sans-serif;"
-                     "    border-collapse: collapse;"
-                     "  }"
-                     "  th {"
-                     "font-family: Arial, Helvetica, sans-serif;"
-                     "    cursor: pointer;"
-                     "  }"
-                     "  td.detailsColumn {"
-                     "font-family: Arial, Helvetica, sans-serif;"
-                     "    -webkit-padding-start: 2em;"
-                     "    text-align: end;"
-                     "    white-space: nowrap;"
-                     "  }"
-                     "  a.icon {"
-                     "    -webkit-padding-start: 1.5em;"
-                     "    text-decoration: none;"
-                     "  }"
-                     "  a.icon:hover {"
-                     "    text-decoration: underline;"
-                     "  }"
-                     "  a.file {"
-                     "    background : url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAABnRSTlMAAAAAAABupgeRAAABHUlEQVR42o2RMW7DIBiF3498iHRJD5JKHurL+CRVBp+i2T16tTynF2gO0KSb5ZrBBl4HHDBuK/WXACH4eO9/CAAAbdvijzLGNE1TVZXfZuHg6XCAQESAZXbOKaXO57eiKG6ft9PrKQIkCQqFoIiQFBGlFIB5nvM8t9aOX2Nd18oDzjnPgCDpn/BH4zh2XZdlWVmWiUK4IgCBoFMUz9eP6zRN75cLgEQhcmTQIbl72O0f9865qLAAsURAAgKBJKEtgLXWvyjLuFsThCSstb8rBCaAQhDYWgIZ7myM+TUBjDHrHlZcbMYYk34cN0YSLcgS+wL0fe9TXDMbY33fR2AYBvyQ8L0Gk8MwREBrTfKe4TpTzwhArXWi8HI84h/1DfwI5mhxJamFAAAAAElFTkSuQmCC \") left top no-repeat;"
-                     "  }"
-                     "  a.dir {"
-                     "    background : url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAd5JREFUeNqMU79rFUEQ/vbuodFEEkzAImBpkUabFP4ldpaJhZXYm/RiZWsv/hkWFglBUyTIgyAIIfgIRjHv3r39MePM7N3LcbxAFvZ2b2bn22/mm3XMjF+HL3YW7q28YSIw8mBKoBihhhgCsoORot9d3/ywg3YowMXwNde/PzGnk2vn6PitrT+/PGeNaecg4+qNY3D43vy16A5wDDd4Aqg/ngmrjl/GoN0U5V1QquHQG3q+TPDVhVwyBffcmQGJmSVfyZk7R3SngI4JKfwDJ2+05zIg8gbiereTZRHhJ5KCMOwDFLjhoBTn2g0ghagfKeIYJDPFyibJVBtTREwq60SpYvh5++PpwatHsxSm9QRLSQpEVSd7/TYJUb49TX7gztpjjEffnoVw66+Ytovs14Yp7HaKmUXeX9rKUoMoLNW3srqI5fWn8JejrVkK0QcrkFLOgS39yoKUQe292WJ1guUHG8K2o8K00oO1BTvXoW4yasclUTgZYJY9aFNfAThX5CZRmczAV52oAPoupHhWRIUUAOoyUIlYVaAa/VbLbyiZUiyFbjQFNwiZQSGl4IDy9sO5Wrty0QLKhdZPxmgGcDo8ejn+c/6eiK9poz15Kw7Dr/vN/z6W7q++091/AQYA5mZ8GYJ9K0AAAAAASUVORK5CYII= \") left top no-repeat;"
-                     "  }"
-                     "  a.up {"
-                     "    background : url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAmlJREFUeNpsU0toU0EUPfPysx/tTxuDH9SCWhUDooIbd7oRUUTMouqi2iIoCO6lceHWhegy4EJFinWjrlQUpVm0IIoFpVDEIthm0dpikpf3ZuZ6Z94nrXhhMjM3c8895977BBHB2PznK8WPtDgyWH5q77cPH8PpdXuhpQT4ifR9u5sfJb1bmw6VivahATDrxcRZ2njfoaMv+2j7mLDn93MPiNRMvGbL18L9IpF8h9/TN+EYkMffSiOXJ5+hkD+PdqcLpICWHOHc2CC+LEyA/K+cKQMnlQHJX8wqYG3MAJy88Wa4OLDvEqAEOpJd0LxHIMdHBziowSwVlF8D6QaicK01krw/JynwcKoEwZczewroTvZirlKJs5CqQ5CG8pb57FnJUA0LYCXMX5fibd+p8LWDDemcPZbzQyjvH+Ki1TlIciElA7ghwLKV4kRZstt2sANWRjYTAGzuP2hXZFpJ/GsxgGJ0ox1aoFWsDXyyxqCs26+ydmagFN/rRjymJ1898bzGzmQE0HCZpmk5A0RFIv8Pn0WYPsiu6t/Rsj6PauVTwffTSzGAGZhUG2F06hEc9ibS7OPMNp6ErYFlKavo7MkhmTqCxZ/jwzGA9Hx82H2BZSw1NTN9Gx8ycHkajU/7M+jInsDC7DiaEmo1bNl1AMr9ASFgqVu9MCTIzoGUimXVAnnaN0PdBBDCCYbEtMk6wkpQwIG0sn0PQIUF4GsTwLSIFKNqF6DVrQq+IWVrQDxAYQC/1SsYOI4pOxKZrfifiUSbDUisif7XlpGIPufXd/uvdvZm760M0no1FZcnrzUdjw7au3vu/BVgAFLXeuTxhTXVAAAAAElFTkSuQmCC \") left top no-repeat;"
-                     "  }"
-                     "  html[dir=rtl] a {"
-                     "font-family: Arial, Helvetica, sans-serif;"
-                     "    background-position-x: center;"
-                     "  }"
-                     "  #parentDirLinkBox {"
-                     "font-family: Arial, Helvetica, sans-serif;"
-                     "    margin-bottom: 10px;"
-                     "    padding-bottom: 10px;"
-                     "  }"
-                     "  #listingParsingErrorBox {"
-                     "font-family: Arial, Helvetica, sans-serif;"
-                     "    border: 1px solid black;"
-                     "    background: #fae691;"
-                     "    padding: 10px;"
-                     "    display: none;"
-                     "  }"
-                     ".content {"
-                     "max-width: 500px;"
-                     "margin: auto;"
-                     "padding: 10px;"
-                     "}"
-                     "</style>"
-                     "<title id=\"title\">Web FileBrowser</title>"
-                     "</head>"
-                     "<body>";
 
+/* Constants */
+const char *const WIFI_SSDI = "Mikrotroniks_Jio";
+const char *const WIFI_PASS = "51251251";
+const String default_httpuser = "admin";
+const String default_httppassword = "admin";
+const char *host = "192.168.29.253";
 String uploadPath;
 
 static void LvTickHandler(void);
-void taskFileDownload(void *pvParameters);
 void sdCardHandler(void *pParameters);
-
-String split(String s, char parser, int index);
 unsigned char h2int(char c);
-String urlencode(String str);
 String urldecode(String str);
 String file_size(int bytes);
 void handleFileDownload();
@@ -117,14 +48,19 @@ void handleNotFound();
 void handleRoot();
 bool handleFileRead(String path);
 String getContentType(String filename);
-void handleLED();
 void handlePer();
+bool checkUserWebAuth();
 
 void setup()
 {
 
   Serial.begin(921600UL); /* prepare for possible serial debug */
   Serial.setDebugOutput(true);
+
+  if(!SPIFFS.begin(true)){
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
 
   if (!SD.begin(SD_CS_PIN))
   {
@@ -184,21 +120,29 @@ void setup()
     Serial.print(host);
   }
 
+
+  // server.serveStatic("/",SPIFFS,"/");
   server.on("/", []() {
-    handleRoot();
+    if (checkUserWebAuth())
+    {
+      handleRoot();
+    }
+    else
+    {
+      server.requestAuthentication();
+    }
   });
 
   server.onNotFound(handleRoot);
-
-  server.on("/fupload", handleFileDownload);
+  server.on("/fupload",handleFileDownload);
   server.on("/deleteConfirm", deleteConfirm);
   server.on("/doDelete", doDelete);
-  server.on("/setLED", handleLED);
   server.on("/showPer",handlePer);
   server.begin();
+
   Serial.println("\r\nHTTP server started");
 
-  // xTaskCreatePinnedToCore(sdCardHandler,"SD card GUI",10000,NULL,2,&task2,1); //pin task to core 1
+  xTaskCreatePinnedToCore(sdCardHandler,"SD card GUI",10000,NULL,2,&task2,0); //pin task to core 0
   // delay(1);
 }
 
@@ -213,10 +157,10 @@ void sdCardHandler(void *pParameters)
 {
   Serial.print("sdCard GUI running on core....");
   Serial.println(xPortGetCoreID());
+
   for (;;)
   {
-    // lv_task_handler(); /* let the GUI do its work */
-    // 
+    lv_task_handler(); /* let the GUI do its work */
     mySd.feedTheDog();
     vTaskDelay(5 / portTICK_PERIOD_MS);
   }
@@ -259,6 +203,8 @@ String getContentType(String filename)
     return "application/x-zip";
   else if (filename.endsWith(".GZ"))
     return "application/x-gzip";
+   else if (filename.endsWith(".mp4"))
+    return "video/mp4";
   return "text/plain";
 }
 
@@ -274,7 +220,8 @@ bool handleFileRead(String path)
     if (SD.exists(pathWithGz))
       path += ".gz";
     File file = SD.open(path, "r");
-    size_t sent = server.streamFile(file, contentType);
+    // size_t sent = server.streamFile(file, contentType);
+    server.streamFile(file, contentType);
     file.close();
     return true;
   }
@@ -282,34 +229,13 @@ bool handleFileRead(String path)
 }
 
 
-
-void handleLED()
-{
-  String ledState = "OFF";
-  String t_state = server.arg("LEDstate"); //Refer  xhttp.open("GET", "setLED?LEDstate="+led, true);
-  Serial.println(t_state);
-  if (t_state == "1")
-  {
-    digitalWrite(LED, HIGH); //LED ON
-    ledState = "ON";         //Feedback parameter
-  }
-  else
-  {
-    digitalWrite(LED, LOW); //LED OFF
-    ledState = "OFF";       //Feedback parameter
-  }
-
-  server.send(200, "text/html", ledState); //Send web page
-}
-
 void handleRoot()
-{
+{ 
 
-  String directory = urldecode(server.uri());
+  String  directory = urldecode(server.uri());
   uploadPath = directory;
   File dir = SD.open(directory);
   String entryName = "";
-  bool emptyFolder = true;
   String tree = "";
   while (true)
   {
@@ -343,8 +269,6 @@ void handleRoot()
       tree += entry.name();
       tree += F("';\">Share</button></td>");
       tree += F("</tr>");
-
-      emptyFolder = false;
     }
     else
     {
@@ -371,7 +295,6 @@ void handleRoot()
       tree += F("';\">Share</button></td>");
       tree += F("</tr>");
 
-      emptyFolder = false;
     }
     entry.close();
   }
@@ -403,7 +326,7 @@ void handleRoot()
       parserCnt++;
   }
   String webpage = "";
-  webpage += F(header);
+  webpage += header;
   webpage += F("<h1 id=\"header\">MikroTroniks Sd Card");
   webpage += directory;
   webpage += F("</h1>");
@@ -421,52 +344,12 @@ void handleRoot()
     webpage += F("</a>");
     webpage += F("</div>");
   }
-
-  webpage += ("<script>");
-  webpage += ("function sortTable(l){");
-  webpage += (" var e=document.getElementById(\"theader\"),n=e.cells[l].dataset.order||\"1\",s=0-(n=parseInt(n,10));");
-  webpage += (" e.cells[l].dataset.order=s;");
-  webpage += ("	var t,a=document.getElementById(\"tbody\"),r=a.rows,d=[];");
-  webpage += ("	for(t=0;t<r.length;t++) d.push(r[t]);");
-  webpage += ("	for(d.sort(function(e,t){var a=e.cells[l].dataset.value,r=t.cells[l].dataset.value;return l?(a=parseInt(a,10),(r=parseInt(r,10))<a?s:a<r?n:0):r<a?s:a<r?n:0}),t=0;t<d.length;t++)");
-  webpage += ("	a.appendChild(d[t])");
-  webpage += ("}");
-
-  webpage += ("function sendData(led) {");
-  webpage += ("var xhttp = new XMLHttpRequest();");
-  webpage += ("xhttp.onreadystatechange = function() { ");
-  webpage += ("if (this.readyState == 4 && this.status == 200) {");
-  webpage += ("document.getElementById(\"LEDState\").innerHTML = this.responseText;} };");
-  webpage += ("xhttp.open(\"GET\", \"setLED?LEDstate=\"+led, true);");
-  webpage += ("xhttp.send();");
-  webpage += ("	};");
-
-  webpage += F("function _(el) {");
-  webpage += F("return document.getElementById(el);");
-  webpage += F("}");
-
-
-  webpage += F("function progress() {");
-  webpage += F("var x = document.getElementById(\"progressBar\");");
-  webpage += F(" var xhttp = new XMLHttpRequest();");
-  webpage += F("xhttp.onreadystatechange = function() {");
-  webpage += F(" if (this.readyState == 4 && this.status == 200) {");
-  webpage += F("   x.value = parseInt(this.responseText);");
-  webpage += F("  console.log(\"progress\" + x.value);");
-  webpage += F("  }");
-  webpage += F(" };");
-  webpage += F("xhttp.open(\"GET\", \"showPer\", true);");
-  webpage += F("xhttp.send();");
-  webpage += F("}");
-  webpage += F("setInterval(progress, 100);");
-  webpage += F("</script>");
-
-
-
+  webpage += script;
   webpage += F("<table>");
   webpage += F("<thead>");
   webpage += F("<tr class=\"header\" id=\"theader\">");
   webpage += F("<th onclick=\"sortTable(0);\">Name</th>");
+  webpage += F("<th class=\"detailsColumn\" onclick=\"sortTable(1);\">Size</th>");
   webpage += F("<th></th>");
   webpage += F("</tr>");
   webpage += F("</thead>");
@@ -475,24 +358,8 @@ void handleRoot()
   webpage += F("</tbody>");
   webpage += F("</table>");
   webpage += F("<hr>");
-
-
-  webpage += F("<h1>Uploader</h1>");
-  webpage += F("<form action='fupload' id='fupload'>");
-  webpage += F("<input class='file-url' type='text' name='fupload' id = 'fupload'  size='60'  value=''>");
-  webpage += F("<button class='buttons' style='margin-left:50px' type='submit'  onclick = \"progress()\"  >Upload </button></form><br>");
-  webpage += F("<progress id=\"progressBar\" value=\"0\" max=\"100\" style=\"width:300px;\" ></progress>");
-  // webpage += F("<p id=\"status\"></p>");
-  // webpage += F("<p id=\"detailsheader\"></p>");
-  // webpage += F("<p id=\"details\"></p>");
-  /*************************************************************************/
-  webpage += F("<div id=\"demo\">");
-  webpage += F("<h1>The ESP32 Update web page without refresh</h1>");
-  webpage += F("<button type=\"button\" onclick=\"sendData(1)\">LED ON</button>");
-  webpage += F("<button type=\"button\" onclick=\"sendData(0)\">LED OFF</button><BR>");
-  webpage += F("</div>");
-  /****************************************************************************/
-
+  webpage += body;
+  webpage += footer;
   if (tree == "")
   {
     String dlPath = urldecode(server.uri());
@@ -516,7 +383,7 @@ void handleRoot()
 void handleNotFound()
 {
   String webpage = "";
-  webpage += F(header);
+  webpage += header;
   webpage += F("<hr>File Not Found<br>");
   webpage += F("<br>URI:");
   webpage += server.uri();
@@ -539,12 +406,12 @@ void doDelete()
 {
 
   String webpage = "";
-  webpage += F(header);
+  webpage += header;
   for (uint8_t i = 0; i < server.args(); i++)
   {
     if (server.argName(i) == "file")
     {
-      Serial.printf("Deleting file: %s\n", server.arg(i));
+      Serial.printf("Deleting file: %s\n", (char *)server.arg(i).c_str());
 
       webpage += F("<hr>Deleting file: <br>");
       webpage += server.arg(i);
@@ -559,7 +426,7 @@ void doDelete()
     }
     if (server.argName(i) == "folder")
     {
-      Serial.printf("Removing Dir: %s\n", server.arg(i));
+      Serial.printf("Removing Dir: %s\n", (char *)server.arg(i).c_str());
       webpage += F("<hr>Removing Dir: <br>");
       webpage += server.arg(i);
       if (SD.rmdir(server.arg(i)))
@@ -581,7 +448,7 @@ void doDelete()
 void deleteConfirm()
 {
   String webpage = "";
-  webpage += F(header);
+  webpage += header;
   for (uint8_t i = 0; i < server.args(); i++)
   {
     if (server.argName(i) == "file")
@@ -610,27 +477,31 @@ void deleteConfirm()
 
 void handleFileDownload()
 {
-  fake_bar = 0;
+
   String webpage = "";
   server.on("/", []() {
-    handleRoot();
+    if (checkUserWebAuth())
+    {
+      handleRoot();
+    }
+    else
+    {
+      server.requestAuthentication();
+    }
   });
-  webpage += F(header);
   for (uint8_t index = 0; index < server.args(); index++)
   {
     if (server.argName(index) == "fupload")
     {
 
-      Serial.printf("Uploading file: %s\n", server.arg(index));
+      Serial.printf("Uploading file: %s\n", (char *)server.arg(index).c_str());
       webpage += server.arg(index);
       if (downloadFile((const char *)server.arg(index).c_str()))
-      { 
+      {
         webpage += F("<br>File downloaded<br>");
         Serial.printf("File downloaded \r\n");
         mySd.fileList("/");
-      }
-      else
-      {
+      }else{ 
         webpage += F("<br> downloading failed<br>");
         Serial.printf(" downloading failed\r\n");
         mySd.fileList("/");
@@ -682,7 +553,6 @@ String urldecode(String str)
     }
     else
     {
-
       encodedString += c;
     }
 
@@ -691,49 +561,6 @@ String urldecode(String str)
 
   return encodedString;
 }
-
-String urlencode(String str)
-{
-  String encodedString = "";
-  char c;
-  char code0;
-  char code1;
-  char code2;
-  for (int i = 0; i < str.length(); i++)
-  {
-    c = str.charAt(i);
-    if (c == ' ')
-    {
-      encodedString += '+';
-    }
-    else if (isalnum(c))
-    {
-      encodedString += c;
-    }
-    else
-    {
-      code1 = (c & 0xf) + '0';
-      if ((c & 0xf) > 9)
-      {
-        code1 = (c & 0xf) - 10 + 'A';
-      }
-      c = (c >> 4) & 0xf;
-      code0 = c + '0';
-      if (c > 9)
-      {
-        code0 = c - 10 + 'A';
-      }
-      code2 = '\0';
-      encodedString += '%';
-      encodedString += code0;
-      encodedString += code1;
-      //encodedString+=code2;
-    }
-    yield();
-  }
-  return encodedString;
-}
-
 unsigned char h2int(char c)
 {
   if (c >= '0' && c <= '9')
@@ -750,29 +577,6 @@ unsigned char h2int(char c)
   }
   return (0);
 }
-
-String split(String s, char parser, int index)
-{
-  String rs = "";
-  int parserIndex = index;
-  int parserCnt = 0;
-  int rFromIndex = 0, rToIndex = -1;
-  while (index >= parserCnt)
-  {
-    rFromIndex = rToIndex + 1;
-    rToIndex = s.indexOf(parser, rFromIndex);
-    if (index == parserCnt)
-    {
-      if (s.substring(rFromIndex, rToIndex) == "")
-        break;
-    }
-    else
-      parserCnt++;
-    rs = s.substring(rFromIndex, rToIndex);
-  }
-  return rs;
-}
-
 
 
 void handlePer()
@@ -799,11 +603,12 @@ bool downloadFile(const char * const fileURL) {
         Serial.printf("[HTTP] GET... code: %d\n", httpCode);
         // file found at server
         if (httpCode == HTTP_CODE_OK) {
+
             uploadFile = SD.open(fileName, FILE_APPEND);
             // get lenght of document (is -1 when Server sends no Content-Length header)
             long len = Http.getSize();
             mySd.totalLen = len;
-            Serial.printf("Payload size [%d] bytes.\r\n", len);
+            Serial.printf("Payload size [%lu] bytes.\r\n", len);
             // create buffer for read
             uint8_t buff[2048] = {0};
             // get tcp stream
@@ -818,17 +623,13 @@ bool downloadFile(const char * const fileURL) {
                     // write it to Serial
                     Serial.printf("%d bytes read[c].\r\n", c);
                     Serial.printf("%d bytes available for read \r\n", size);
-                    // Serial.printf("len = %d\r\n",len);
                     // open file in append mode.
                     uploadFile.write(buff, c);
                     wb += c;
                     mySd.per = map(wb,0,mySd.totalLen,0,100);
                     currentPer = mySd.per;
                     Serial.printf("%d %%.... Downloaded \r\n",currentPer);
-                    server.on("/", []() {
-                      handleRoot();
-                    });
-                    server.on("/showPer", handlePer);
+                    // server.on("/showPer", handlePer);
                     // close file.
                     if (len > 0){
                         len -= c;
@@ -847,4 +648,15 @@ bool downloadFile(const char * const fileURL) {
     Http.end();
     uploadFile.close();
     return (result);
+}
+
+
+bool checkUserWebAuth() {
+  bool isAuthenticated = false;
+
+  if (server.authenticate(default_httpuser.c_str(), default_httppassword.c_str())) {
+    Serial.println("is authenticated via username and password");
+    isAuthenticated = true;
+  }
+  return isAuthenticated;
 }
