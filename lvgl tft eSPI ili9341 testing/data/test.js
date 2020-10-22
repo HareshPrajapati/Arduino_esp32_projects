@@ -45,9 +45,7 @@ function myFunction(response) {
   var arr = JSON.parse(response);
   var i;
   var out ="<table>";
-
   out += "<tr><th>index</th><th>name</th><th>size</th><th>Delete file</th><th>Share file</th><tr>";
-
   for(i = 0; i < arr.length; i++) {
     out += "<tr><td>" +
     arr[i].index +
@@ -72,24 +70,30 @@ function myFunction(response) {
 }
 
 
+function updatePercentage(){
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function () {
+    if (this.readyState == 4 && this.status == 200) {
+      update(this.responseText);
+    }
+  }
+  xhttp.open("GET", "/showPer", true);
+  xhttp.send();
+}
+
 function update() {
-  var element = document.getElementById("myprogressBar");
+  var element = document.getElementById("progressBar");
   var width = 1;
   var identity = setInterval(scene, 50);
   function scene() {
     if (width >= 100) {
-    clearInterval(identity);
+      clearInterval(identity);
     } else {
-    width++;
-    console.log(width);
-    element.style.width = width + '%';
-    element.innerHTML = width  + "%";
+      width++;
+      console.log(width);
+      element.style.width = width + '%';
+      element.innerHTML = width + '%';
     }
   }
-  }
-
-
-
-
-
+}
 

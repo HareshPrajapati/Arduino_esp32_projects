@@ -7,16 +7,13 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include "GUI.h"
-#include <ESPAsyncWebServer.h>
-#include <AsyncTCP.h>
 #include <ArduinoJson.h>
-
+#include <SPIFFSEditor.h>
 WebServer server(80);
-// AsyncWebServer server(80);
 
-#define TFT_BL              (22)
-#define LED                 (27)
-#define SERVER_NAME         "192.168.29.253" //  address is http://192.168.29.253/
+#define TFT_BL (22)
+#define LED (27)
+#define SERVER_NAME "192.168.29.253" //  address is http://192.168.29.253/
 
 SDcard mySd;
 TFT_Gui TFTGUI;
@@ -24,25 +21,20 @@ Ticker tick; /* timer for interrupt handler */
 TaskHandle_t task1, task2;
 File uploadFile;
 
-
-
 /* Constants */
 const char *const WIFI_SSDI = "Mikrotroniks_Jio";
 const char *const WIFI_PASS = "51251251";
-const String default_httpuser = "Mikrotroniks";
-const String default_httppassword = "51251251";
+const char *default_httpuser = "admin";
+const char *default_httppassword = "admin";
 const char *host = "192.168.29.253";
-static int currentPer = 0;
+int currentPer = 1;
 String arg;
-String uploadPath , mainDirectory = "/" ,previousDir = "/";
-
-
-
+String uploadPath, mainDirectory = "/", previousDir = "/";
 
 static void LvTickHandler(void);
 void sdCardHandler(void *pParameters);
 void handleFileDownload();
-bool downloadFile(const char * const fileURL);
+bool downloadFile(const char *const fileURL);
 void deleteConfirm();
 void doDelete();
 void handlePrintDir();
@@ -53,28 +45,21 @@ void readFile(String dlPath);
 String getContentType(String filename);
 void handleNotFound();
 void handlePer();
-bool checkUserWebAuth();
 void handlePreviousDir();
-void handleNoButton();
 
-void setup()
-{
-
+void setup() {
   Serial.begin(921600UL); /* prepare for possible serial debug */
   Serial.setDebugOutput(true);
 
-  if(!SPIFFS.begin(true)){
+  if (!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
 
-  if (!SD.begin(SD_CS_PIN))
-  {
+  if (!SD.begin(SD_CS_PIN)) {
     Serial.println(F("Card failed or not present.."));
     mySd.SDPresent = false;
-  }
-  else
-  {
+  } else {
     Serial.println(F("Card initialised... file access enabled..."));
     mySd.SDPresent = true;
   }
@@ -82,7 +67,7 @@ void setup()
   ledcAttachPin(TFT_BL, 1);  // assign TFT_BL pin to channel 1
   ledcSetup(1, 12000UL, 10); // 12 kHz PWM, 10-bit resolution
   analogReadResolution(10);
-  ledcWrite(1, 768); // brightness 0 - 255
+  ledcWrite(1, 768);         // brightness 0 - 255
 
   Serial.print("\n");
   WiFi.mode(WIFI_STA);
@@ -92,12 +77,10 @@ void setup()
   Serial.println(WIFI_SSDI);
 
   uint8_t wifiRetry = 0;
-  while (WiFi.status() != WL_CONNECTED && wifiRetry++ < 20)
-  {
+  while (WiFi.status() != WL_CONNECTED && wifiRetry++ < 20) {
     delay(500);
   }
-  if (wifiRetry == 21)
-  {
+  if (wifiRetry == 21) {
     Serial.print("Could not connect to");
     Serial.println(WIFI_SSDI);
     ESP.restart();
@@ -109,52 +92,42 @@ void setup()
   /*Initialize the graphics library's tick*/
   tick.attach_ms(LVGL_TICK_PERIOD, LvTickHandler);
 
-  if (TFTGUI.initSD())
-  {
+  if (TFTGUI.initSD()) {
     TFTGUI.lvMain();
-  }
-  else
-  {
+  } else{
     TFTGUI.lvErrorPage();
   }
 
-  if (MDNS.begin(host))
-  {
+  if (MDNS.begin(host)) {
     MDNS.addService("http", "tcp", 80);
     Serial.println("MDNS responder started");
     Serial.print("You can now connect to http://");
     Serial.print(host);
     Serial.println("/");
   }
-
-
-  server.serveStatic("/",SPIFFS,"/index.html");
-  server.serveStatic("/test.js",SPIFFS,"/test.js");
-  server.on("/home",printHomeDir);
-  server.on("/list",handlePrintDir);
-  server.on("/previousDir",handlePreviousDir);
-  server.on("/fupload",handleFileDownload);
+  server.serveStatic("/", SPIFFS, "/index.html");
+  server.serveStatic("/test.js", SPIFFS, "/test.js");
+  server.on("/home", printHomeDir);
+  server.on("/list", handlePrintDir);
+  server.on("/previousDir", handlePreviousDir);
+  server.on("/fupload", handleFileDownload);
   server.on("/deleteConfirm", deleteConfirm);
   server.on("/doDelete", doDelete);
-  server.on("/readFile",handleReadFile);
-  server.on("/showPer",handlePer);
-  server.on("/no",handleNoButton);
+  server.on("/readFile", handleReadFile);
+  server.on("/showPer", handlePer);
   server.begin();
   Serial.println("\r\nHTTP server started");
-  // xTaskCreatePinnedToCore(sdCardHandler,"SD card GUI",10000,NULL,2,&task2,0); //pin task to core 0
-
+  xTaskCreatePinnedToCore(sdCardHandler,"SD card GUI",10000,NULL,2,&task2,0); //pin task to core 0
 }
 
 void loop() {
   server.handleClient();
 }
 
-void sdCardHandler(void *pParameters)
-{
+void sdCardHandler(void *pParameters) {
   Serial.print("sdCard GUI running on core....");
   Serial.println(xPortGetCoreID());
-  for (;;)
-  {
+  for (;;) {
     lv_task_handler(); /* let the GUI do its work */
     mySd.feedTheDog();
     vTaskDelay(5 / portTICK_PERIOD_MS);
@@ -162,15 +135,13 @@ void sdCardHandler(void *pParameters)
   vTaskDelete(NULL);
 }
 
-static void LvTickHandler(void)
-{
+static void LvTickHandler(void) {
   lv_tick_inc(LVGL_TICK_PERIOD);
 }
 
 /***************************** server reader funcions *****************************************/
 
-String getContentType(String filename)
-{
+String getContentType(String filename) {
   filename.toUpperCase();
   if (server.hasArg("download"))
     return "application/octet-stream";
@@ -205,7 +176,6 @@ String getContentType(String filename)
 
 void handleNotFound() {
   String webpage = "";
-
   webpage += F("<hr>File Not Found<br>");
   webpage += F("<br>URI:");
   webpage += server.uri();
@@ -221,39 +191,22 @@ void handleNotFound() {
   server.send(404, "text/html", webpage);
 }
 
-
-
 void doDelete() {
-
   String webpage = "";
-  for (uint8_t i = 0; i < server.args(); i++)
-  {
-    if (server.argName(i) == "file")
-    {
+  for (uint8_t i = 0; i < server.args(); i++) {
+    if (server.argName(i) == "file") {
       Serial.printf("Deleting file: %s\n", (char *)server.arg(i).c_str());
       webpage += F("<hr>Deleting file: <br>");
+      String filename = strrchr(server.arg(i).c_str(), '/');
       webpage += server.arg(i);
-      if (SD.remove(server.arg(i)))
-      {
+      // const char *filename = strrchr((const char *)server.arg(i).c_str(),'/');
+      if (SD.remove(server.arg(i))) {
         webpage += F("<br>File deleted<br>");
       }
-      else
-      {
+      else if (SD.rmdir((char *)server.arg(i).c_str())) {
+        webpage += F("<br>directory deleted<br>");
+      } else{
         webpage += F("<br>Delete failed<br>");
-      }
-    }
-    if (server.argName(i) == "folder")
-    {
-      Serial.printf("Removing Dir: %s\n", (char *)server.arg(i).c_str());
-      webpage += F("<hr>Removing Dir: <br>");
-      webpage += server.arg(i);
-      if (SD.rmdir(server.arg(i)))
-      {
-        webpage += F("<br>Dir removed<br>");
-      }
-      else
-      {
-        webpage += F("<br>rmdir failed<br>");
       }
     }
   }
@@ -261,27 +214,14 @@ void doDelete() {
   server.send(200, "text/html", webpage);
 }
 
-
-
-void deleteConfirm()
-{
+void deleteConfirm() {
   String webpage = "";
-  for (uint8_t i = 0; i < server.args(); i++)
-  { 
-     Serial.println(server.argName(i));
-    if (server.argName(i) == "file")
-    {
+  for (uint8_t i = 0; i < server.args(); i++) {
+    Serial.println(server.argName(i));
+    if (server.argName(i) == "file") {
       webpage += F("<hr>Do you want to delete the file:<br>");
       webpage += server.arg(i);
       webpage += F("<br><br><button class='buttons' onclick=\"location.href='/doDelete?file=");
-      webpage += server.arg(i);
-      webpage += F("';\">Yes</button>");
-    }
-    if (server.argName(i) == "folder")
-    {
-      webpage += F("<hr>Do you want to delete the Directory:<br>");
-      webpage += server.arg(i);
-      webpage += F("<br><br><button class='buttons' onclick=\"location.href='/doDelete?folder=");
       webpage += server.arg(i);
       webpage += F("';\">Yes</button>");
     }
@@ -291,24 +231,17 @@ void deleteConfirm()
   server.send(200, "text/html", webpage);
 }
 
-
-
-void handleFileDownload()
-{
+void handleFileDownload() {
   String webpage = "";
-  for (uint8_t index = 0; index < server.args(); index++)
-  {
-    if (server.argName(index) == "fupload")
-    {
-
+  for (uint8_t index = 0; index < server.args(); index++) {
+    if (server.argName(index) == "fupload") {
       Serial.printf("Uploading file: %s\n", (char *)server.arg(index).c_str());
       webpage += server.arg(index);
-      if (downloadFile((const char *)server.arg(index).c_str()))
-      {
+      if (downloadFile((const char *)server.arg(index).c_str())) {
         webpage += F("<br>File downloaded<br>");
         Serial.printf("File downloaded \r\n");
         mySd.fileList("/");
-      }else{
+      } else {
         webpage += F("<br>downloading failed<br>");
         Serial.printf(" downloading failed\r\n");
         mySd.fileList("/");
@@ -319,80 +252,77 @@ void handleFileDownload()
   server.send(200, "text/html", webpage);
 }
 
-
-
-void handlePer()
-{
-    // StaticJsonDocument<200> doc;
-    // doc["percentage"] = currentPer;
-    // String response;
-    // serializeJson(doc, response);
-    // String finalResponce = "[" + response + "]";
-    server.send(200, "application/json", (String)currentPer); //Send web page
+void handlePer() {
+  StaticJsonDocument<1024> doc;
+  doc["percentage"] = String(currentPer);
+  String response;
+  serializeJson(doc, response);
+  server.send(200, "application/json", response); //Send web page
 }
 
-void handlePreviousDir(){
+void handlePreviousDir() {
+  Serial.printf("previousDir is %s \r\n", previousDir.c_str());
   printDirectory(previousDir);
-  mainDirectory = previousDir;
+  int pos = previousDir.lastIndexOf("/");
+  Serial.printf("pos of / is %d \r\n ", pos);
+  String tempDirectory = previousDir.substring(0, pos);
+  Serial.printf("temDir is %s \r\n", tempDirectory.c_str());
+  if (pos == 1 || pos == 0)  {
+    previousDir = "/";
+    mainDirectory = tempDirectory;
+  } else {
+    previousDir = tempDirectory;
+    mainDirectory = tempDirectory;
+  }
 }
 
-void handlePrintDir(){
-
-    printDirectory(mainDirectory);
+void handlePrintDir() {
+  printDirectory(mainDirectory);
 }
 
-void printHomeDir(){
+void printHomeDir() {
   mainDirectory = "/";
   previousDir = "/";
   printDirectory("/");
 }
 
-void handleNoButton(){
-  mainDirectory = previousDir;
-}
 
 void printDirectory(String path) {
   StaticJsonDocument<1024> doc;
-  Serial.printf("arg is %s \r\n",path.c_str());
+  Serial.printf("arg is %s \r\n", path.c_str());
   String finalResponse = "";
-  if(path != "/" && !SD.exists((char *)path.c_str())) Serial.printf("not found  /r/n");
+  if (path != "/" && !SD.exists((char *)path.c_str()))
+    Serial.printf("not found  /r/n");
   File dir = SD.open((char *)path.c_str());
   path = String();
-  if(!dir.isDirectory()){
+  if (!dir.isDirectory()) {
     dir.close();
   }
   dir.rewindDirectory();
   File entry;
   int index = 0;
-  while (entry = dir.openNextFile())
-  {
-    // if (!entry.isDirectory())
-    // {
-      // printDirectory(entry.name());
-      doc["index"] = String(index);
-      index++;
-      // char *filename = strrchr(entry.name(),'/');
-      // doc["name"] = String(filename);
-      doc["name"] = String(entry.name());
-      int bytes = entry.size();
-      String fsize = "";
-      if (bytes < 1024)
-        fsize = String(bytes) + " B";
-      else if (bytes < (1024 * 1024))
-        fsize = String(bytes / 1024.0, 3) + " KB";
-      else if (bytes < (1024 * 1024 * 1024))
-        fsize = String(bytes / 1024.0 / 1024.0, 3) + " MB";
-      else
-        fsize = String(bytes / 1024.0 / 1024.0 / 1024.0, 3) + " GB";
-      doc["size"] = fsize;
-      String deletBtn = "Delete", shareBtn = "share";
-      doc["Deletefile"] = deletBtn;
-      doc["Sharefile"] = shareBtn;
-      String response;
-      serializeJsonPretty(doc, response);
-      finalResponse += response + ',' + '\n';
-      entry.close();
-    // }
+  while (entry = dir.openNextFile()) {
+    doc["index"] = String(index);
+    index++;
+    doc["name"] = String(entry.name());
+    int bytes = entry.size();
+    String fsize = "";
+    if (bytes < 1024)
+      fsize = String(bytes) + " B";
+    else if (bytes < (1024 * 1024))
+      fsize = String(bytes / 1024.0, 3) + " KB";
+    else if (bytes < (1024 * 1024 * 1024))
+      fsize = String(bytes / 1024.0 / 1024.0, 3) + " MB";
+    else
+      fsize = String(bytes / 1024.0 / 1024.0 / 1024.0, 3) + " GB";
+    doc["size"] = fsize;
+    String deletBtn = "Delete", shareBtn = "share";
+    doc["Deletefile"] = deletBtn;
+    doc["Sharefile"] = shareBtn;
+    String response;
+    serializeJsonPretty(doc, response);
+    finalResponse += response + ',' + '\n';
+    entry.close();
   }
   dir.close();
   finalResponse.remove(finalResponse.length() - 2);
@@ -400,129 +330,114 @@ void printDirectory(String path) {
   server.send(200, "text/html", finalResponse);
 }
 
-
 void readFile(String dlPath) {
   String webpage = "";
-    Serial.printf("dlpath = %s \r\n", dlPath.c_str());
-    if (SD.exists(dlPath)) {
-      File entry = SD.open(dlPath);
-      if (!entry.isDirectory()){
-        Serial.println(dlPath);
-        Serial.println("handleFileRead: " + dlPath);
-        if (dlPath.endsWith("/")){
-            dlPath += "index.htm";
-        }
-        String contentType = getContentType(dlPath);
-        String pathWithGz = dlPath + ".gz";
-        if (SD.exists(pathWithGz) || SD.exists(dlPath)){
-          if (SD.exists(pathWithGz)){
-              dlPath += ".gz";
-          }
-          File file = SD.open(dlPath, "r");
-          server.streamFile(file, contentType);
-          file.close();
-        }
-      }else{
-        previousDir = mainDirectory;
-        Serial.printf("dlPath = %s \r\n",dlPath.c_str());
-        mainDirectory = dlPath;
-        webpage += F("<html><script src=\"test.js\"></script>");
-        webpage += F("<body><h1> Do You Want to open : ");
-        webpage += dlPath;
-        webpage += F("Folder ? </h1>");
-        webpage += F("<br><button class='buttons' onclick=\"location.href='/';\">yes</button>");
-        webpage += F("<button class='buttons' onclick='window.history.back();'>no</button>");
-        webpage += F("</body></html>");
+  Serial.printf("dlpath = %s \r\n", dlPath.c_str());
+  if (SD.exists(dlPath)) {
+    File entry = SD.open(dlPath);
+    if (!entry.isDirectory()) {
+      // Serial.println(dlPath);
+      Serial.println("handleFileRead: " + dlPath);
+      if (dlPath.endsWith("/")) {
+        dlPath += "index.htm";
       }
-    }else{
-      handleNotFound();
+      String contentType = getContentType(dlPath);
+      String pathWithGz = dlPath + ".gz";
+      if (SD.exists(pathWithGz) || SD.exists(dlPath)) {
+        if (SD.exists(pathWithGz)) {
+          dlPath += ".gz";
+        }
+        File file = SD.open(dlPath, "r");
+        server.streamFile(file, contentType);
+        file.close();
+      }
+  } else {
+      previousDir = mainDirectory;
+      mainDirectory = dlPath;
+      Serial.printf("Directory is = %s \r\n", dlPath.c_str());
+      webpage += F("<body><h1> Do You Want to open : ");
+      webpage += dlPath;
+      webpage += F("Folder ? </h1>");
+      webpage += F("<br><button class='buttons' onclick=\"location.href='/';\">yes</button>");
     }
+  } else {
+    handleNotFound();
+  }
   server.send(200, "text/html", webpage);
 }
 
-
-
-void handleReadFile(){
-  for (size_t i = 0; i < server.args(); i++)
-  {
+void handleReadFile() {
+  for (size_t i = 0; i < server.args(); i++) {
     String path = server.urlDecode(server.arg(i));
-    Serial.printf("path is %s \r\n",path.c_str());
+    Serial.printf("path is %s \r\n", path.c_str());
     readFile(path);
   }
-
 }
 
-bool downloadFile(const char * const fileURL) {
-    bool result = false;
-    char *fileName = strrchr(fileURL, '/' );
-    mySd.deleteFile(SD, fileName);
-    HTTPClient Http;
-    Serial.print("[HTTP] begin...\n");
-    // configure server and url
-    Http.begin(fileURL);
-    // http.begin("media.gettyimages.com", 80, "/photos/red-heart-shape-balloon-flying-above-buildings-in-city-picture-id608954473");
-    Serial.print("[HTTP] GET...\n");
-    // start connection and send HTTP header
-    int httpCode = Http.GET();
-    if (httpCode > 0) {
-        // HTTP header has been send and Server response header has been handled
-        Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-        // file found at server
-        if (httpCode == HTTP_CODE_OK) {
+bool downloadFile(const char *const fileURL) {
+  bool result = false;
+  char *fileName = strrchr(fileURL, '/');
+  mySd.deleteFile(SD, fileName);
+  HTTPClient Http;
+  Serial.print("[HTTP] begin...\n");
+  // configure server and url
+  Http.begin(fileURL);
+  Serial.print("[HTTP] GET...\n");
+  // start connection and send HTTP header
+  int httpCode = Http.GET();
+  if (httpCode > 0) {
+    // HTTP header has been send and Server response header has been handled
+    Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+    // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      uploadFile = SD.open(fileName, FILE_APPEND);
+      // get lenght of document (is -1 when Server sends no Content-Length header)
+      long len = Http.getSize();
+      mySd.totalLen = len;
+      Serial.printf("Payload size [%lu] bytes.\r\n", len);
+      // create buffer for read
+      uint8_t buff[2048] = {0};
+      // get tcp stream
+      WiFiClient *stream = Http.getStreamPtr();
+      long wb = 0;
+      // read all data from server
+      unsigned long start = millis();
+      while (Http.connected() && (len > 0 || len == -1)) {
+        // get available data size
+        size_t size = stream->available();
+        if (size){ // read up to 2048 byte
 
-            uploadFile = SD.open(fileName, FILE_APPEND);
-            // get lenght of document (is -1 when Server sends no Content-Length header)
-            long len = Http.getSize();
-            mySd.totalLen = len;
-            Serial.printf("Payload size [%lu] bytes.\r\n", len);
-            // create buffer for read
-            uint8_t buff[2048] = {0};
-            // get tcp stream
-            WiFiClient *stream = Http.getStreamPtr();
-            long wb = 0;
-            // read all data from server
-            while (Http.connected() && (len > 0 || len == -1)){
-                // get available data size
-                size_t size = stream->available();
-                if (size){   // read up to 2048 byte
-                    int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
-                    // write it to Serial
-                    Serial.printf("%d bytes read[c].\r\n", c);
-                    Serial.printf("%d bytes available for read \r\n", size);
-                    // open file in append mode.
-                    uploadFile.write(buff, c);
-                    wb += c;
-                    mySd.per = map(wb,0,mySd.totalLen,0,100);
-                    currentPer = mySd.per;
-                    Serial.printf("%d %%.... Downloaded \r\n",currentPer);
-                    server.on("/showPer", handlePer);
-                    // close file.
-                    if (len > 0){
-                        len -= c;
-                    }
-                }
-                delayMicroseconds(1);
-            }
-            Serial.println();
-            Serial.print("[HTTP] connection closed or file downloaded.\n");
-            result = true;
+          int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
+          // write it to Serial
+          Serial.printf("%d bytes read[c].\r\n", c);
+          Serial.printf("%d bytes available for read \r\n", size);
+          // open file in append mode.
+          uploadFile.write(buff, c);
+          wb += c;
+          mySd.per = map(wb,0,mySd.totalLen,0,100);
+          currentPer = mySd.per;
+          Serial.printf("%d %%.... Downloaded \r\n",currentPer);
+          //close file.
+          if (len > 0) {
+            len -= c;
+          }
         }
+      }
+      unsigned long And = millis();
+      float tmm = (float)(And-start);
+      float takenTime = (tmm/1000);
+      Serial.printf("taken time is %.2f second\r\n",takenTime);
+      Serial.println();
+      Serial.print("[HTTP] connection closed or file downloaded.\n");
+      result = true;
     }
-    else {
-        Serial.printf("[HTTP] GET... failed, error: %s\n", Http.errorToString(httpCode).c_str());
-    }
-    Http.end();
-    uploadFile.close();
-    return (result);
-}
-
-
-bool checkUserWebAuth() {
-  bool isAuthenticated = false;
-
-  if (server.authenticate(default_httpuser.c_str(), default_httppassword.c_str())) {
-    Serial.println("is authenticated via username and password");
-    isAuthenticated = true;
+  } else {
+    Serial.printf("[HTTP] GET... failed, error: %s\n", Http.errorToString(httpCode).c_str());
   }
-  return isAuthenticated;
+  Http.end();
+  time_t t = uploadFile.getLastWrite();
+  struct tm *tmstruct = localtime(&t);
+  Serial.printf("LAST WRITE: %d-%02d-%02d %02d:%02d:%02d\n", (tmstruct->tm_year) + 1900, (tmstruct->tm_mon) + 1, tmstruct->tm_mday, tmstruct->tm_hour, tmstruct->tm_min, tmstruct->tm_sec);
+  uploadFile.close();
+  return (result);
 }

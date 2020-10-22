@@ -148,12 +148,6 @@ void TFT_Gui::fileListEvent(lv_obj_t *btn, lv_event_t e) {
 
     headerSetText(currentFileName);
     lv_tabview_set_tab_act(tv, 1, LV_ANIM_ON);
-
-    // lv_textarea_set_text(ta, openFile(currentFileName).c_str());
-
-  //   lv_obj_t *parent = lv_obj_get_parent(lv_obj_get_parent(ta));
-  //   lv_obj_set_size(ta, lv_obj_get_width(parent) - 10, lv_obj_get_height(parent) - 10);
-  //   lv_obj_move_background(kb);
   }
 }
 

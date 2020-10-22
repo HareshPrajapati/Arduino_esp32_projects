@@ -28,10 +28,10 @@ table, th, td {
 
     table tr:nth-child(odd) {
         background-color: #b1f3f3;
-      }
-      table tr:nth-child(even) {
+    }
+    table tr:nth-child(even) {
         background-color: #52bcca;
-      }
+    }
 td.detailsColumn {
     font-family: Arial, Helvetica, sans-serif;
     -webkit-padding-start: 2em;
@@ -75,17 +75,16 @@ html[dir=rtl] a {
     margin: auto;
     padding: 10px;
     }
-
-#Progress_Status { 
-width: 80%; 
-background-color: #ddd;
-} 
-
+#progressBar { 
+    width: 0%;
+    background-color: #4CAF50;
+    text-align: center;
+    line-height: 20px;
+    color: white;
+}
 #myprogressBar { 
-width: 0%; 
-height: 20px; 
-text-align: center; /* To center it horizontally (if you want) */
-background-color: #4CAF50;
+    width: 10%;
+    background-color: #ddd;
 }
 </style>
 <script src="test.js"></script>
@@ -93,15 +92,15 @@ background-color: #4CAF50;
     <button class='buttons' style="margin-left:50px" onclick="getHomeDir()">Home</button>
     <button class='buttons' style="margin-left:50px" onclick="getBackDir()">Back</button>
     <div id="fileTable"></div><br>
-        <hr>
-        <h1> Uploader</h1>
-        <form action='fupload' id='fupload'>
-        <input class='file-url' type='text' name='fupload' id = 'fupload'  size='80'  value=''>
-        <button class='buttons' style='margin-left:50px' type='submit' onclick="update()" >Upload </button>
-        <br><br>
-        <div id="Progress_Status">
-            <div id="myprogressBar">0%</div>
-        </div>
-        </form><br>
+    <hr>
+    <h1> Uploader</h1>
+    <form action='fupload'  id='fupload' enctype="multipart/form-data">
+    <input class='file-url' type='text' name='fupload' id = 'fupload'  size='80'>
+    <button class='buttons' style='margin-left:50px' type='submit' onclick="update()">Upload</button>
+    <br>
+    <div class="myprogressBar">
+    <div id="progressBar">0%</div>
+    </div>
+    </form>
 </body>
 </html>
