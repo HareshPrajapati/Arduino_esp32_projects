@@ -1,4 +1,4 @@
-function _(el) {
+ function _(el) {
     return document.getElementById(el);
     }
 
@@ -36,16 +36,20 @@ function getBackDir(){
 function myFunction(response) {
   var arr = JSON.parse(response);
   var i;
-  var out ="<table>";
+  var out ="<table class = \"center\">";
   out += "<tr><th>index</th><th>name</th><th>size</th><th>Delete file</th><th>Share file</th><tr>";
   for(i = 0; i < arr.length; i++) {
+    var n = arr[i].name.lastIndexOf("/");
+    var m = (arr[i].name.length - n);
+    var name = arr[i].name.slice(-m);
+    console.log(name);
     out += "<tr><td>" +
     arr[i].index +
     "</td><td>" +
-    "<a href='/readFile?=" +
+    "<a href='/openFile?=" +
     arr[i].name +
     "'\">"+
-    arr[i].name +
+    name +
     "</a></td><td>" +
     arr[i].size +
     "</td><td>"+
@@ -61,45 +65,19 @@ function myFunction(response) {
   document.getElementById("fileTable").innerHTML = out;
 }
 
-function updatePercentage(){
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function () {
-    if (this.readyState == 4 && this.status == 200) {
-      update(this.responseText);
-    }
-  }
-  xhttp.open("GET", "/showPer", true);
-  xhttp.send();
-}
-
-function update() {
-  var element = document.getElementById("progressBar");
-  var width = 1;
-  var identity = setInterval(scene, 50);
-  function scene() {
-    if (width >= 100) {
-      clearInterval(identity);
-    } else {
-      width++;
-      console.log(width);
-      element.style.width = width + '%';
-      element.innerHTML = width + '%';
-    }
-  }
-}
-
 setInterval(function() {
-  // Call a function repetatively with 2 Second interval
+  // Call a function repetatively with 100 milli Second interval
   getData();
-}, 2000);
-
+}, 100);
 
 function getData() {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("percentageValue").innerHTML =
-      this.responseText;
+      document.getElementById("percent").innerHTML =
+      this.responseText + "%";
+      document.getElementById("bar").style.width = this.responseText + '%'; 
+      console.log(this.responseText);
     }
   };
   xhttp.open("GET", "readPer", true);

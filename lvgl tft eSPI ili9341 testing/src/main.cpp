@@ -4,11 +4,13 @@
 #include <SPIFFS.h>
 #include <Ticker.h>
 #include <WiFiClient.h>
+#include <HTTPClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include "GUI.h"
 #include <ArduinoJson.h>
 #include <SPIFFSEditor.h>
+#include <AsyncTCP.h>
 WebServer server(80);
 
 #define TFT_BL (22)
@@ -33,6 +35,7 @@ String uploadPath, mainDirectory = "/", previousDir = "/";
 
 static void LvTickHandler(void);
 void sdCardHandler(void *pParameters);
+void sdCardDownloadHandler(void *pParameters);
 void handleFileDownload();
 bool downloadFile(const char *const fileURL);
 void deleteConfirm();
@@ -50,12 +53,10 @@ void handlePreviousDir();
 void setup() {
   Serial.begin(921600UL); /* prepare for possible serial debug */
   Serial.setDebugOutput(true);
-
   if (!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
-
   if (!SD.begin(SD_CS_PIN)) {
     Serial.println(F("Card failed or not present.."));
     mySd.SDPresent = false;
@@ -63,19 +64,17 @@ void setup() {
     Serial.println(F("Card initialised... file access enabled..."));
     mySd.SDPresent = true;
   }
+
   pinMode(LED, OUTPUT);
   ledcAttachPin(TFT_BL, 1);  // assign TFT_BL pin to channel 1
   ledcSetup(1, 12000UL, 10); // 12 kHz PWM, 10-bit resolution
   analogReadResolution(10);
   ledcWrite(1, 768);         // brightness 0 - 255
-
   Serial.print("\n");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSDI, WIFI_PASS);
-
   Serial.print("Connecting to ");
   Serial.println(WIFI_SSDI);
-
   uint8_t wifiRetry = 0;
   while (WiFi.status() != WL_CONNECTED && wifiRetry++ < 20) {
     delay(500);
@@ -87,17 +86,14 @@ void setup() {
   }
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
-
   guiInIt();
   /*Initialize the graphics library's tick*/
   tick.attach_ms(LVGL_TICK_PERIOD, LvTickHandler);
-
   if (TFTGUI.initSD()) {
     TFTGUI.lvMain();
   } else{
     TFTGUI.lvErrorPage();
   }
-
   if (MDNS.begin(host)) {
     MDNS.addService("http", "tcp", 80);
     Serial.println("MDNS responder started");
@@ -109,15 +105,16 @@ void setup() {
   server.serveStatic("/test.js", SPIFFS, "/test.js");
   server.on("/home", printHomeDir);
   server.on("/list", handlePrintDir);
-  server.on("/previousDir", handlePreviousDir);
   server.on("/fupload", handleFileDownload);
+  server.on("/previousDir", handlePreviousDir);
   server.on("/deleteConfirm", deleteConfirm);
   server.on("/doDelete", doDelete);
   server.on("/readFile", handleReadFile);
   server.on("/showPer", handlePer);
   server.begin();
   Serial.println("\r\nHTTP server started");
-  xTaskCreatePinnedToCore(sdCardHandler,"SD card GUI",10000,NULL,2,&task2,0); //pin task to core 0
+  xTaskCreatePinnedToCore(sdCardHandler,"SD card GUI",10000,NULL,2,&task2,1); //pin task to core 1
+  // xTaskCreatePinnedToCore(sdCardDownloadHandler,"SD card Download",10000,NULL,3,&task1,0); //pin task to core 0
 }
 
 void loop() {
@@ -134,6 +131,18 @@ void sdCardHandler(void *pParameters) {
   }
   vTaskDelete(NULL);
 }
+
+void sdCardDownloadHandler(void *pParameters) {
+  Serial.print("sdCard Download running on core....");
+  Serial.println(xPortGetCoreID());
+  for (;;) {
+
+    mySd.feedTheDog();
+    vTaskDelay(5 / portTICK_PERIOD_MS);
+  }
+  // vTaskDelete(NULL);
+}
+
 
 static void LvTickHandler(void) {
   lv_tick_inc(LVGL_TICK_PERIOD);
@@ -199,7 +208,6 @@ void doDelete() {
       webpage += F("<hr>Deleting file: <br>");
       String filename = strrchr(server.arg(i).c_str(), '/');
       webpage += server.arg(i);
-      // const char *filename = strrchr((const char *)server.arg(i).c_str(),'/');
       if (SD.remove(server.arg(i))) {
         webpage += F("<br>File deleted<br>");
       }
@@ -226,7 +234,6 @@ void deleteConfirm() {
       webpage += F("';\">Yes</button>");
     }
   }
-
   webpage += F("<button class='buttons' onclick='window.history.back();'>No</button>");
   server.send(200, "text/html", webpage);
 }
@@ -285,7 +292,6 @@ void printHomeDir() {
   previousDir = "/";
   printDirectory("/");
 }
-
 
 void printDirectory(String path) {
   StaticJsonDocument<1024> doc;

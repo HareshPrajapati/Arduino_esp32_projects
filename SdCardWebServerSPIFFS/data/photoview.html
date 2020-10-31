@@ -15,7 +15,11 @@
     white-space: nowrap;
     }
 body {
-    background-color: #caa5be;
+    /* background-color: #caa5be; */
+    background-image: url('https://images.pexels.com/photos/531880/pexels-photo-531880.jpeg');
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: cover
     }
 
 table, th, td {
@@ -86,23 +90,11 @@ html[dir=rtl] a {
     width: 10%;
     background-color: #ddd;
 }
-</style>
-<script src="test.js"></script>
-<body>
-    <h1>Sensor Value:<span id="percentageValue">0</span></h1><br>
-    <button class='buttons' style="margin-left:50px" onclick="getHomeDir()">Home</button>
-    <button class='buttons' style="margin-left:50px" onclick="getBackDir()">Back</button>
-    <div id="fileTable"></div><br>
-    <hr>
-    <h1> Uploader</h1>
-    <form action='fupload'  id='fupload' enctype="multipart/form-data">
-    <input class='file-url' type='text' name='fupload' id = 'fupload'  size='80'>
-    <button class='buttons' style='margin-left:50px' type='submit'>Upload</button>
-    <br>
-    <div class="myprogressBar">
-    <div id="progressBar">0%</div>
-    </div>
-    </form>
 
+</style>
+<body>
+    <button class='buttons' style="margin-left:20px" onclick="window.history.back()">Back</button>
+    <iframe src = "http://192.168.29.253/photo" width="100%" height="500" style="border:1px solid black;"></iframe>
+    <hr>
 </body>
 </html>
