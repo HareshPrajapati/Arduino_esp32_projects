@@ -2,6 +2,8 @@
     return document.getElementById(el);
     }
 
+  var percentage;
+
   var xmlhttp = new XMLHttpRequest();
   xmlhttp.onreadystatechange=function() {
     if (this.readyState == 4 && this.status == 200) {
@@ -22,7 +24,8 @@ function getHomeDir(){
   xhttp.send();
 }
 
-function getBackDir(){
+
+function getBackDir() {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function () {
     if (this.readyState == 4 && this.status == 200) {
@@ -76,10 +79,12 @@ function getData() {
     if (this.readyState == 4 && this.status == 200) {
       document.getElementById("percent").innerHTML =
       this.responseText + "%";
-      document.getElementById("bar").style.width = this.responseText + '%'; 
+      percentage = this.responseText;
+      document.getElementById("bar").style.width = this.responseText + '%';
       console.log(this.responseText);
     }
   };
   xhttp.open("GET", "readPer", true);
   xhttp.send();
 }
+

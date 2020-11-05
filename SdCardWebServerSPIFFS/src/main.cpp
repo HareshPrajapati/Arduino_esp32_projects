@@ -14,6 +14,8 @@
 #include <AsyncTCP.h>
 
 #define TFT_BL (22)
+/***************************************************************************************************************/
+/****************************************************************************************************************/
 
 // create buffer for read
 uint8_t buff[1024] = {0};
@@ -88,7 +90,7 @@ void setup() {
   /*Initialize the graphics library's tick*/
   tick.attach_ms(LVGL_TICK_PERIOD, LvTickHandler);
   if (TFTGUI.initSD()){
-    TFTGUI.lvMain();
+    TFTGUI.lv_file_browser();
   } else {
     TFTGUI.lvErrorPage();
   }
@@ -101,9 +103,12 @@ void setup() {
   }
   serverSetup();
   xTaskCreatePinnedToCore(downloadhandler, "Downloader", 10000, NULL, 2, &task1, 1); //pin task to core 1
+  // xTaskCreatePinnedToCore(sdCardHandler, "TFT GUI", 10000, NULL, 1, &task1, 0); //pin task to core 1
 }
 
 void loop(){
+  lv_task_handler();
+  vTaskDelay(5);
 }
 
 void serverSetup() {
@@ -118,7 +123,7 @@ void serverSetup() {
   });
 
   // upload a file to /fupload
-  server.on("/fupload", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/fupload",HTTP_ANY, [](AsyncWebServerRequest *request) {
     String webpage = "";
     for (int index = 0; index < request->args(); index++) {
       if (request->argName(index) == "fupload") {
@@ -232,12 +237,11 @@ bool downloadFile(const char *const fileURL) {
   }
 }
 
+
 static void LvTickHandler(void) {
   lv_tick_inc(LVGL_TICK_PERIOD);
 }
-
-void sdCardHandler(void *pParameters)
-{
+void sdCardHandler(void *pParameters) {
   Serial.print("sdCard GUI running on core....");
   Serial.println(xPortGetCoreID());
   for (;;)
@@ -254,7 +258,6 @@ void downloadhandler(void *pParameters) {
   Serial.println(xPortGetCoreID());
   for (;;)
   {
-    // lv_task_handler(); /* let the GUI do its work */
     if (downloadPending)
     {
       if (Http.connected())

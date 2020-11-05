@@ -62,19 +62,16 @@ html[dir=rtl] a {
     margin: auto;
     padding: 10px;
     }
-
 #progress {
  width: 200px;
  border: 1px solid black;
  position: relative;
  padding: 3px;
 }
-
 #percent {
  position: absolute;
  left: 0%;
 }
-
 #bar {
  height: 20px;
  background-color: rgb(70, 22, 245);
@@ -94,11 +91,11 @@ html[dir=rtl] a {
     </div>
     <form action='fupload'  id='fupload' enctype="multipart/form-data">
     <input class='file-url' type='text' name='fupload' style="margin-left:280px" id ='fupload'  size='80'>
-    <button class='buttons' id = 'submitbutton' style='margin-left:50px' type='submit'>Upload</button>
-    <div id="progress" style="margin-left:550px" >
+    <button class='buttons' id = 'submitbutton' style='margin-left:50px'>Upload</button>
+    </form>
+    <div id="progress" style="margin-left:550px">
         <span id="percent">0%</span>
         <div id="bar" style="width:0%"></div>
     </div>
-    </form>
 </body>
 </html>

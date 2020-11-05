@@ -1,5 +1,10 @@
 {
     "files.associations": {
-        "functional": "cpp"
+        "functional": "cpp",
+        "array": "c",
+        "bitset": "c",
+        "initializer_list": "c",
+        "regex": "c",
+        "utility": "c"
     }
 }
