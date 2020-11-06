@@ -34,7 +34,6 @@ bool my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
   uint16_t touchX, touchY;
   bool touched = tft.getTouch(&touchX, &touchY, 600U);
   if (!touched){
-    // Serial.printf("touch false \r\n");
     return false;
   }
   if (touchX > SCREEN_WIDTH || touchY > SCREEN_HIGHT) {
@@ -50,7 +49,6 @@ bool my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
     data->point.y = touchY;
     // Serial.printf(" data->point.x = %u \r\n",touchX);
     // Serial.printf(" data->point.y = %u \r\n",touchY);
-    Serial.printf("touched \r\n");
 
   }
   return false; /*Return `false` because we are not buffering and no more data to read*/
@@ -123,7 +121,6 @@ void TFT_Gui::refreshList(String fileName) {
       int m = nextFile.length();
       String tempName = nextFile.substring(n ,m);
       lv_obj_t * list_btn = lv_list_add_btn(list, LV_SYMBOL_DIRECTORY , (const char *)tempName.c_str());
-      // Serial.printf("next directory is %s \r\n",nextFile.c_str());
       lv_obj_set_event_cb(list_btn, eventHandler);
     } else {
       String nextFile1 = file.name();
@@ -154,8 +151,8 @@ void TFT_Gui::createTab1(lv_obj_t *parent,String fileName)
 void TFT_Gui::lv_file_browser(String fileName)
 {
     /* Create a window to use as the action bar */
-    Serial.printf("size of win is %u \r\n", sizeof(win));
     win = lv_win_create(lv_scr_act(), NULL);
+    // lv_obj_clean(win);
     lv_obj_set_size(win, LV_HOR_RES, LV_VER_RES);
     lv_win_set_title(win, "File Manager");
     lv_obj_t * up_btn = lv_win_add_btn(win, LV_SYMBOL_UP);
@@ -178,6 +175,7 @@ void eventHandler(lv_obj_t * obj, lv_event_t event)
 {
     if(event == LV_EVENT_CLICKED) {
       Serial.printf("Clicked: %s\n", lv_list_get_btn_text(obj));
+      lv_obj_clean(win);
       dir.lv_file_browser(nextFile);
     }
 }
@@ -212,6 +210,7 @@ void fileHandler(lv_obj_t * obj, lv_event_t event){
  void homeDir(lv_obj_t * obj, lv_event_t event){
   if(event == LV_EVENT_CLICKED) {
     Serial.printf("Clicked: %s\n", lv_list_get_btn_text(obj));
+    lv_obj_clean(win);
     dir.lv_file_browser("/");
   }
 }
@@ -224,8 +223,10 @@ void fileHandler(lv_obj_t * obj, lv_event_t event){
     int n = nextFile.lastIndexOf('/');
     String backDir = nextFile.substring(0,n);
     if (n==0) {
+        lv_obj_clean(win);
         dir.lv_file_browser();
       }else{
+        lv_obj_clean(win);
         dir.lv_file_browser(backDir);
       }
   }
@@ -237,8 +238,10 @@ void goUp(lv_obj_t * obj, lv_event_t event){
       String backDir = nextFile.substring(0,n);
       Serial.printf("len is %d and  backDir is %s \r\n",n,backDir.c_str());
       if (n==0) {
+        lv_obj_clean(win);
         dir.lv_file_browser();
       }else{
+        lv_obj_clean(win);
         dir.lv_file_browser(backDir);
         nextFile = backDir;
       }
@@ -256,17 +259,34 @@ void  shareBtnCb(lv_obj_t * obj, lv_event_t event){
     lv_obj_set_event_cb(home, homeDir);
     lv_obj_t * win_content = lv_win_get_content(win);
     lv_cont_set_fit(lv_page_get_scrl(win_content), _LV_FIT_LAST);
-    lv_obj_t * bar = lv_bar_create(win,NULL);
     lv_obj_set_size(bar, 250, 30);
+    lv_obj_t *bar = lv_bar_create(win,NULL);
     lv_obj_set_pos(bar, 40,60);
-    File myFile = SD.open(shareFile);
+    lv_bar_set_range(bar,0,100);
+    lv_bar_set_start_value(bar,0,LV_ANIM_ON);
+    size_t c  = 0,readPercentage = 0 , finalPer = 0 ;
+    long wb;
+    uint8_t buff[1024] ;
+    File myFile;
+    myFile = SD.open(shareFile);
     if (myFile){
-      while( myFile.available()){
-        Serial.write(myFile.read());
-        size_t n = myFile.size();
-        Serial.println(n);
-        // lv_bar_set_value(bar,x, true);
+      size_t start = millis();
+      while( myFile.available()) {
+        size_t size =  myFile.available();
+        Serial.printf("size = %d \r\n",size);
+        c = myFile.read(buff, ((size > sizeof(buff)) ? sizeof(buff) :size));
+        Serial.write(buff,c);
+        wb += c;
+        Serial.printf("wb = %d \r\n",wb);
+        readPercentage = map(wb,0,myFile.size(),0,100);
+        finalPer = readPercentage;
+        Serial.printf("finalPercentage = %u \r\n",finalPer);
+        lv_bar_set_value(bar,finalPer,LV_ANIM_ON);
       }
+      size_t stop = millis();
+      size_t p =(stop-start);
+      Serial.print("(stop-start) :");
+      Serial.println(p);
       myFile.close();
     }else{
       Serial.printf("error opening %s \r\n",shareFile.c_str());

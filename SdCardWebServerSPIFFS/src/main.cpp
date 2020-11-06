@@ -105,7 +105,6 @@ void setup() {
   xTaskCreatePinnedToCore(downloadhandler, "Downloader", 10000, NULL, 2, &task1, 1); //pin task to core 1
   // xTaskCreatePinnedToCore(sdCardHandler, "TFT GUI", 10000, NULL, 1, &task1, 0); //pin task to core 1
 }
-
 void loop(){
   lv_task_handler();
   vTaskDelay(5);
