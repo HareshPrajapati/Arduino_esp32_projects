@@ -13,32 +13,45 @@
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
 
-#define TFT_BL (22)
-/***************************************************************************************************************/
-/****************************************************************************************************************/
 
-// create buffer for read
-uint8_t buff[1024] = {0};
+/***************************************** DEFINE *******************************************************************/
+
+#define TFT_BL (22)
+
+
+/**************************************** CONSTANT *****************************************************************/
+
 const char *const WIFI_SSDI = "Mikrotroniks_Jio";
 const char *const WIFI_PASS = "51251251";
 const char *const DEFAULT_USER = "admin";
 const char *const DEFAULT_PASS = "51251251";
 const char *const host = "192.168.29.253";
-char *fileName;
-File uploadFile;
-WiFiClient *stream;
-long wb;
-AsyncWebServer server(80);
-HTTPClient Http;
-Ticker tick; /* timer for interrupt handler */
-TaskHandle_t task1, task2;
-SDcard mySd;
-TFT_Gui TFTGUI;
-uint8_t currentPer = 0, quikPer = 0;
-unsigned long End = 0;
+
+/***************************************** GLOBLES *****************************************************************/
+
 String mainDirectory = "/", previousDir = "/", photoPath = "";
-bool downloadPending = false;
-bool result = false;
+bool downloadPending = false , currentFileOpen = false;
+size_t readChar = 0, readedPercentage = 0, finalPercentage = 0;
+long readData , wb;
+char *fileName;
+// create buffer for read
+uint8_t charBuff[1024] , buff[1024] = {0},currentPer = 0;
+
+
+/***************************************** GLOBLE OBJECTS *********************************************************/
+
+File uploadFile , currentFile;     /* File  */
+WiFiClient *stream;                /* Wifi Client for stream file */
+AsyncWebServer server(80);         /* Async web server object */
+HTTPClient Http;                   /* HTTPClient */
+Ticker tick;                       /* timer for interrupt handler */
+TaskHandle_t task1, task2;         /* task handlers*/
+SDcard mySd;                       /* Sd card object */
+TFT_Gui TFTGUI;                    /* LittleVgl GUI object */
+
+
+/******************************************* FUNCTION DECLARATION *************************************************/
+
 void serverSetup();
 bool downloadFile(const char *const fileURL);
 static void LvTickHandler(void);
@@ -46,71 +59,107 @@ void sdCardHandler(void *pParameters);
 void printDirectory(AsyncWebServerRequest *request, String path = "/");
 void openFile(AsyncWebServerRequest *request, String dlPath);
 void doDelete(AsyncWebServerRequest *request);
+void doShare(AsyncWebServerRequest *request);
 void deleteConfirm(AsyncWebServerRequest *request);
 String getContentType(AsyncWebServerRequest *request, String filename);
 void downloadhandler(void *pParameters);
 
+/****************************************************************************************************************/
+
 void setup() {
   Serial.begin(921600UL);
   Serial.setDebugOutput(true);
-  if (!SPIFFS.begin()) {
-    Serial.printf("Error to oprn SPIFFS file !!!! \r\n");
+  if (!SPIFFS.begin())                                       //SPIFFS For html files of web browser
+  {
+    Serial.printf("Error to open SPIFFS file !!!! \r\n");
     ESP.restart();
   }
 
-  if (!SD.begin(SS)){
+  if (!SD.begin(SS))                                         //SD card for read, write and save files
+  {
     Serial.println(F("Card failed or not present.."));
     mySd.SDPresent = false;
   }
-  else{
+  else
+  {
     Serial.println(F("Card initialised... file access enabled..."));
     mySd.SDPresent = true;
   }
-  ledcAttachPin(TFT_BL, 1);  // assign TFT_BL pin to channel 1
-  ledcSetup(1, 12000UL, 10); // 12 kHz PWM, 10-bit resolution
+  ledcAttachPin(TFT_BL, 1);                                // assign TFT_BL pin to channel 1
+  ledcSetup(1, 12000UL, 10);                               // 12 kHz PWM, 10-bit resolution
   analogReadResolution(10);
-  ledcWrite(1, 768); // brightness 0 - 255
+  ledcWrite(1, 768);                                       // brightness 
   Serial.print("\n");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSDI, WIFI_PASS);
+  WiFi.begin(WIFI_SSDI, WIFI_PASS);                         //connect to wifi
   Serial.print("Connecting to ");
   Serial.println(WIFI_SSDI);
   uint8_t wifiRetry = 0;
-  while (WiFi.status() != WL_CONNECTED && wifiRetry++ < 20){
+  while (WiFi.status() != WL_CONNECTED && wifiRetry++ < 20)
+  {
     delay(500);
   }
-  if (wifiRetry == 21){
+  if (wifiRetry == 21)
+  {
     Serial.print("Could not connect to");
     Serial.println(WIFI_SSDI);
     ESP.restart();
   }
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
-  guiInIt();
-  /*Initialize the graphics library's tick*/
-  tick.attach_ms(LVGL_TICK_PERIOD, LvTickHandler);
-  if (TFTGUI.initSD()){
-    TFTGUI.lv_file_browser();
-  } else {
+  guiInIt();                                                       //LIttleVgl GUI init
+  tick.attach_ms(LVGL_TICK_PERIOD, LvTickHandler);                 //Initialize the graphics library's tick
+  if (TFTGUI.initSD())
+  {
+    TFTGUI.lvFileBrowser();
+  }
+  else
+  {
     TFTGUI.lvErrorPage();
   }
-  if (MDNS.begin(host)){
+  if (MDNS.begin(host))                                              //MDNS begin
+  {
     MDNS.addService("http", "tcp", 80);
     Serial.println("MDNS responder started");
     Serial.print("You can now connect to http://");
     Serial.print(host);
     Serial.println("/");
   }
-  serverSetup();
+  serverSetup();                                                     //server aetup for events requests
   xTaskCreatePinnedToCore(downloadhandler, "Downloader", 10000, NULL, 2, &task1, 1); //pin task to core 1
-  // xTaskCreatePinnedToCore(sdCardHandler, "TFT GUI", 10000, NULL, 1, &task1, 0); //pin task to core 1
-}
-void loop(){
-  lv_task_handler();
-  vTaskDelay(5);
+  xTaskCreatePinnedToCore(sdCardHandler, "TFT GUI", 10000, NULL, 1, &task2, 0);      //pin task to core 0
 }
 
-void serverSetup() {
+
+void loop()
+{
+  if (LedShareFileOpen)
+  {
+    currentFile = myFile;
+    size_t size = currentFile.available();
+    if (size)
+    {
+      readChar = currentFile.read(charBuff, ((size > sizeof(charBuff)) ? sizeof(charBuff) : size));
+      Serial.write(charBuff, readChar);
+      readData += readChar;
+      readedPercentage = (readData*100)/currentFile.size();
+      currentPer = readedPercentage;
+      lv_bar_set_value(bar, currentPer, LV_ANIM_ON);
+      if (readData == currentFile.size())
+      {
+        currentPer = 0;
+        lv_bar_set_value(bar, currentPer, LV_ANIM_ON);
+        readChar = 0;
+        readData = 0;
+        currentFile.close();
+        LedShareFileOpen = false;
+      }
+    }
+  }
+}
+
+void serverSetup()
+{
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     if (!request->authenticate(DEFAULT_USER, DEFAULT_PASS))
       return request->requestAuthentication();
@@ -122,13 +171,16 @@ void serverSetup() {
   });
 
   // upload a file to /fupload
-  server.on("/fupload",HTTP_ANY, [](AsyncWebServerRequest *request) {
+  server.on("/fupload", HTTP_ANY, [](AsyncWebServerRequest *request) {
     String webpage = "";
-    for (int index = 0; index < request->args(); index++) {
-      if (request->argName(index) == "fupload") {
+    for (int index = 0; index < request->args(); index++)
+    {
+      if (request->argName(index) == "fupload")
+      {
         Serial.printf("Uploading file: %s\n", (char *)request->arg(index).c_str());
-        if(downloadFile((const char *)request->arg(index).c_str())){
-            request->send(SPIFFS, "/index.html", String(), false);
+        if (downloadFile((const char *)request->arg(index).c_str()))
+        {
+          request->send(SPIFFS, "/index.html", String(), false);
         }
       }
     }
@@ -149,7 +201,9 @@ void serverSetup() {
     {
       previousDir = "/";
       mainDirectory = "/";
-    }else{
+    }
+    else
+    {
       previousDir = previousDir.substring(0, pos);
       mainDirectory = previousDir.substring(0, pos);
     }
@@ -178,6 +232,10 @@ void serverSetup() {
     doDelete(request);
   });
 
+  server.on("/share", HTTP_GET, [](AsyncWebServerRequest *request) {
+    doShare(request);
+  });
+
   server.on("/readPer", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", (String)currentPer);
   });
@@ -201,7 +259,8 @@ void serverSetup() {
   server.begin();
 }
 
-bool downloadFile(const char *const fileURL) {
+bool downloadFile(const char *const fileURL)
+{
   char c = '/';
   fileName = strrchr(fileURL, c);
   mySd.deleteFile(SD, fileName);
@@ -211,10 +270,11 @@ bool downloadFile(const char *const fileURL) {
   Http.begin(fileURL);
   Serial.print("[HTTP] GET...\n");
   // start connection and send HTTP header
-    int httpCode = Http.GET();
-  if (httpCode > 0) {
+  int httpCode = Http.GET();
+  if (httpCode > 0)
+  {
     // HTTP header has been send and Server response header has been handled
-    Serial.printf("request->arg(index).c_str() == %s \r\n",fileURL);
+    Serial.printf("request->arg(index).c_str() == %s \r\n", fileURL);
     Serial.printf("[HTTP] GET... code: %d\n", httpCode);
     // file found at server
     if (httpCode == HTTP_CODE_OK)
@@ -231,16 +291,19 @@ bool downloadFile(const char *const fileURL) {
       wb = 0;
       downloadPending = true;
     }
-  }else{
+  }
+  else
+  {
     Serial.printf("[HTTP] GET... failed, error: %s\n", Http.errorToString(httpCode).c_str());
   }
 }
 
-
-static void LvTickHandler(void) {
+static void LvTickHandler(void)
+{
   lv_tick_inc(LVGL_TICK_PERIOD);
 }
-void sdCardHandler(void *pParameters) {
+void sdCardHandler(void *pParameters)
+{
   Serial.print("sdCard GUI running on core....");
   Serial.println(xPortGetCoreID());
   for (;;)
@@ -252,7 +315,8 @@ void sdCardHandler(void *pParameters) {
   vTaskDelete(NULL);
 }
 
-void downloadhandler(void *pParameters) {
+void downloadhandler(void *pParameters)
+{
   Serial.print("downloader running on core....");
   Serial.println(xPortGetCoreID());
   for (;;)
@@ -276,7 +340,8 @@ void downloadhandler(void *pParameters) {
           Serial.printf("%d %%.... Downloaded \r\n", currentPer);
           //close file.
         }
-        if (wb == mySd.totalLen) {
+        if (wb == mySd.totalLen)
+        {
           currentPer = 0;
           Serial.println();
           Serial.print("[HTTP] connection closed or file downloaded.\n");
@@ -287,13 +352,36 @@ void downloadhandler(void *pParameters) {
         }
       }
     }
+
+    if (currentFileOpen)
+    {
+      size_t size = currentFile.available();
+      if (size)
+      {
+        readChar = currentFile.read(charBuff, ((size > sizeof(charBuff)) ? sizeof(charBuff) : size));
+        Serial.write(charBuff, readChar);
+        readData += readChar;
+        readedPercentage = (readData*100)/currentFile.size();
+        // readedPercentage = map(readData, 0, currentFile.size(), 0, 100);
+        currentPer = readedPercentage;
+      }
+      if (readData == currentFile.size())
+      {
+        currentPer = 0;
+        readChar = 0;
+        readData = 0;
+        currentFile.close();
+        currentFileOpen = false;
+      }
+    }
     mySd.feedTheDog();
     vTaskDelay(5 / portTICK_PERIOD_MS);
   }
   vTaskDelete(NULL);
 }
 
-void printDirectory(AsyncWebServerRequest *request, String path) {
+void printDirectory(AsyncWebServerRequest *request, String path)
+{
   StaticJsonDocument<4096> doc;
   Serial.printf("arg is %s \r\n", path.c_str());
   String finalResponse = "";
@@ -301,13 +389,15 @@ void printDirectory(AsyncWebServerRequest *request, String path) {
     Serial.printf("not found  /r/n");
   File dir = SD.open((char *)path.c_str());
   path = String();
-  if (!dir.isDirectory()) {
+  if (!dir.isDirectory())
+  {
     dir.close();
   }
   dir.rewindDirectory();
   File entry;
   int index = 0;
-  while (entry = dir.openNextFile()) {
+  while (entry = dir.openNextFile())
+  {
     doc["index"] = String(index);
     index++;
     doc["name"] = String(entry.name());
@@ -336,19 +426,25 @@ void printDirectory(AsyncWebServerRequest *request, String path) {
   request->send(200, "text/html", finalResponse);
 }
 
-void openFile(AsyncWebServerRequest *request, String dlPath) {
+void openFile(AsyncWebServerRequest *request, String dlPath)
+{
   String webpage = "";
   Serial.printf("dlpath = %s \r\n", dlPath.c_str());
-  if (SD.exists(dlPath)) {
+  if (SD.exists(dlPath))
+  {
     File entry = SD.open(dlPath);
-    if (!entry.isDirectory()) {
-      if (dlPath.endsWith("/")) {
+    if (!entry.isDirectory())
+    {
+      if (dlPath.endsWith("/"))
+      {
         dlPath += "index.htm";
       }
       String contentType = getContentType(request, dlPath);
       String pathWithGz = dlPath + ".gz";
-      if (SD.exists(pathWithGz) || SD.exists(dlPath)) {
-        if (SD.exists(pathWithGz)) {
+      if (SD.exists(pathWithGz) || SD.exists(dlPath))
+      {
+        if (SD.exists(pathWithGz))
+        {
           dlPath += ".gz";
         }
         Serial.printf("main dir is %s \r\n", mainDirectory.c_str());
@@ -357,27 +453,37 @@ void openFile(AsyncWebServerRequest *request, String dlPath) {
         AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/photoview.html", String(), false);
         request->send(response);
       }
-    }else{
+    }
+    else
+    {
       previousDir = mainDirectory;
       mainDirectory = dlPath;
       request->send(SPIFFS, "/index.html", String(), false);
     }
   }
-  else {
+  else
+  {
     server._handleDisconnect(request);
   }
 }
 
-void doDelete(AsyncWebServerRequest *request) {
+void doDelete(AsyncWebServerRequest *request)
+{
   String webpage = "";
-  for (uint8_t i = 0; i < request->args(); i++) {
-    if (request->argName(i) == "file") {
-      if (SD.remove(request->arg(i))) {
+  for (uint8_t i = 0; i < request->args(); i++)
+  {
+    if (request->argName(i) == "file")
+    {
+      if (SD.remove(request->arg(i)))
+      {
         request->send(SPIFFS, "/index.html", String(), false);
       }
-      else if (SD.rmdir((char *)request->arg(i).c_str())) {
+      else if (SD.rmdir((char *)request->arg(i).c_str()))
+      {
         request->send(SPIFFS, "/index.html", String(), false);
-      } else {
+      }
+      else
+      {
         webpage += F("<br>Delete failed<br>");
         request->send(200, "text/html", webpage);
       }
@@ -385,11 +491,14 @@ void doDelete(AsyncWebServerRequest *request) {
   }
 }
 
-void deleteConfirm(AsyncWebServerRequest *request) {
+void deleteConfirm(AsyncWebServerRequest *request)
+{
   String webpage = "";
-  for (uint8_t i = 0; i < request->args(); i++) {
+  for (uint8_t i = 0; i < request->args(); i++)
+  {
     Serial.println(request->argName(i));
-    if (request->argName(i) == "file") {
+    if (request->argName(i) == "file")
+    {
       webpage += F("<hr>Do you want to delete the file:<br>");
       webpage += request->arg(i);
       webpage += F("<br><br><button class='buttons' onclick=\"location.href='/doDelete?file=");
@@ -401,7 +510,33 @@ void deleteConfirm(AsyncWebServerRequest *request) {
   request->send(200, "text/html", webpage);
 }
 
-String getContentType(AsyncWebServerRequest *request, String filename) {
+void doShare(AsyncWebServerRequest *request)
+{
+  for (size_t index = 0; index < request->args(); index++)
+  {
+    Serial.println(request->argName(index));
+    if (request->argName(index) == "file")
+    {
+      // Serial.println(request->arg(index));
+      currentFile = SD.open(request->arg(index));
+      if (currentFile)
+      {
+        if (currentFile.isDirectory())
+        {
+          request->send(SPIFFS, "/index.html", String(), false);
+        }
+        else if (currentFile.available())
+          {
+            currentFileOpen = true;
+            request->send(SPIFFS, "/index.html", String(), false);
+          }
+      }
+    }
+  }
+}
+
+String getContentType(AsyncWebServerRequest *request, String filename)
+{
   filename.toUpperCase();
   if (request->hasArg("download"))
     return "application/octet-stream";

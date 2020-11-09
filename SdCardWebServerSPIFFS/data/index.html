@@ -1,84 +1,103 @@
 <!DOCTYPE html>
 <html>
 <html lang="en">
+
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta charset="UTF-8">
 </head>
 <style>
-.header {
-  text-align: center;
-  color: rgb(252, 6, 252);
-  font-size: 30px;
-}
-body {
-    background-image: url('https://images.pexels.com/photos/531880/pexels-photo-531880.jpeg');
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-    background-size: cover
+    .header {
+        text-align: center;
+        color: rgb(29, 13, 245);
+        font-size: 30px;
     }
 
-table, th, td {
+    body {
+        background-image: url('https://images.pexels.com/photos/531880/pexels-photo-531880.jpeg');
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-size: cover
+    }
+
+    table,
+    th,
+    td {
         padding: 5px;
         text-align: center;
     }
+
     th {
-        font-weight:bold;
+        font-weight: bold;
     }
-    table tr:nth-child(odd) { 
+
+    table tr:nth-child(odd) {
         background-color: #b1f3f3;
     }
+
     table tr:nth-child(even) {
         background-color: #52bcca;
     }
+
     table.center {
-  margin-left: auto; 
-  margin-right: auto;
-}
-td.detailsColumn {
-    font-family: Arial, Helvetica, sans-serif;
-    -webkit-padding-start: 2em;
-    text-align: end;
-    white-space: nowrap;
+        margin-left: auto;
+        margin-right: auto;
     }
-html[dir=rtl] a {
-    font-family: Arial, Helvetica, sans-serif;
-    background-position-x: center;
+
+    td.detailsColumn {
+        font-family: Arial, Helvetica, sans-serif;
+        -webkit-padding-start: 2em;
+        text-align: end;
+        white-space: nowrap;
     }
-#parentDirLinkBox {
-    font-family: Arial, Helvetica, sans-serif;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
+
+    html[dir=rtl] a {
+        font-family: Arial, Helvetica, sans-serif;
+        background-position-x: center;
     }
-#listingParsingErrorBox {
-    font-family: Arial, Helvetica, sans-serif;
-    border: 1px solid black;
-    background: #fae691;
-    padding: 10px;
-    display: none;
+
+    #parentDirLinkBox {
+        font-family: Arial, Helvetica, sans-serif;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
     }
-.content {
-    max-width: 500px;
-    margin: auto;
-    padding: 10px;
+
+    #listingParsingErrorBox {
+        font-family: Arial, Helvetica, sans-serif;
+        border: 1px solid black;
+        background: #fae691;
+        padding: 10px;
+        display: none;
     }
-#progress {
- width: 200px;
- border: 1px solid black;
- position: relative;
- padding: 3px;
-}
-#percent {
- position: absolute;
- left: 0%;
-}
-#bar {
- height: 20px;
- background-color: rgb(70, 22, 245);
-}
+
+    .content {
+        max-width: 500px;
+        margin: auto;
+        padding: 10px;
+    }
+
+    #progress {
+        width: 200px;
+        padding-top: 10px;
+        border: 1px solid black;
+        position: relative;
+        padding: 3px;
+        margin-left: 600px;
+    }
+
+    #percent {
+        position: absolute;
+        left: 0%;
+    }
+
+    #bar {
+        height: 20px;
+        background-color: rgb(70, 22, 245);
+    }
 </style>
 <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
 <script src="test.js"></script>
+
 <body>
     <div class="header">
         <h1>MikroTroniks Sd Card</h1>
@@ -89,13 +108,15 @@ html[dir=rtl] a {
     <div class="header">
         <h1>File Downloader</h1>
     </div>
-    <form action='fupload'  id='fupload' enctype="multipart/form-data">
-    <input class='file-url' type='text' name='fupload' style="margin-left:280px" id ='fupload'  size='80'>
-    <button class='buttons' id = 'submitbutton' style='margin-left:50px'>Upload</button>
+    <form action='fupload' id='fupload' enctype="multipart/form-data">
+        <input class='file-url' type='text' name='fupload' style="margin-left:280px" id='fupload' size='80'>
+        <button class='buttons' id='submitbutton' style='margin-left:50px'>Upload</button>
     </form>
-    <div id="progress" style="margin-left:550px">
+    <br>
+    <div id="progress">
         <span id="percent">0%</span>
         <div id="bar" style="width:0%"></div>
     </div>
 </body>
+
 </html>
