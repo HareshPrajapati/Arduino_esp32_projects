@@ -2,7 +2,7 @@ function _(el) {
   return document.getElementById(el);
 }
 
-var percentage;
+
 
 var xmlhttp = new XMLHttpRequest();
 xmlhttp.onreadystatechange = function () {
@@ -71,6 +71,8 @@ setInterval(function () {
   // Call a function repetatively with 100 milli Second interval
   getData();
 }, 100);
+
+var percentage;
 
 function getData() {
   var xhttp = new XMLHttpRequest();

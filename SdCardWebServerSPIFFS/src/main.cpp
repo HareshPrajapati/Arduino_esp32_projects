@@ -12,30 +12,30 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
-
+#include <Update.h>
 
 /***************************************** DEFINE *******************************************************************/
 
-#define TFT_BL (22)
+#define TFT_BL                   (22)
 
 
 /**************************************** CONSTANT *****************************************************************/
 
-const char *const WIFI_SSDI = "Mikrotroniks_Jio";
-const char *const WIFI_PASS = "51251251";
-const char *const DEFAULT_USER = "admin";
-const char *const DEFAULT_PASS = "51251251";
-const char *const host = "192.168.29.253";
+const char *const WIFI_SSDI      = "Mikrotroniks_Jio";
+const char *const WIFI_PASS      = "51251251";
+const char *const DEFAULT_USER   = "admin";
+const char *const DEFAULT_PASS   = "51251251";
+const char *const host           = "192.168.29.253";
 
 /***************************************** GLOBLES *****************************************************************/
 
 String mainDirectory = "/", previousDir = "/", photoPath = "";
 bool downloadPending = false , currentFileOpen = false;
-size_t readChar = 0, readedPercentage = 0, finalPercentage = 0;
+size_t readChar = 0, readedPercentage = 0, finalPercentage = 0,currentPer = 0;
 long readData , wb;
 char *fileName;
 // create buffer for read
-uint8_t charBuff[1024] , buff[1024] = {0},currentPer = 0;
+uint8_t charBuff[1024] , buff[1024] = {0} ;
 
 
 /***************************************** GLOBLE OBJECTS *********************************************************/
@@ -48,7 +48,6 @@ Ticker tick;                       /* timer for interrupt handler */
 TaskHandle_t task1, task2;         /* task handlers*/
 SDcard mySd;                       /* Sd card object */
 TFT_Gui TFTGUI;                    /* LittleVgl GUI object */
-
 
 /******************************************* FUNCTION DECLARATION *************************************************/
 
@@ -63,60 +62,48 @@ void doShare(AsyncWebServerRequest *request);
 void deleteConfirm(AsyncWebServerRequest *request);
 String getContentType(AsyncWebServerRequest *request, String filename);
 void downloadhandler(void *pParameters);
-
+void performUpdate(Stream &updateSource, size_t updateSize);
+void updateFromFS(fs::FS &fs);
 /****************************************************************************************************************/
 
 void setup() {
   Serial.begin(921600UL);
   Serial.setDebugOutput(true);
-  if (!SPIFFS.begin())                                       //SPIFFS For html files of web browser
-  {
+  if (!SPIFFS.begin()) {                                     //SPIFFS For html files of web browser
     Serial.printf("Error to open SPIFFS file !!!! \r\n");
     ESP.restart();
   }
-
-  if (!SD.begin(SS))                                         //SD card for read, write and save files
-  {
+  guiInIt();                                                  ////LIttleVgl GUI init
+  if (!SD.begin(SS)) {                                        //SD card for read, write and save files
     Serial.println(F("Card failed or not present.."));
+    TFTGUI.lvErrorPage();
     mySd.SDPresent = false;
-  }
-  else
-  {
+  } else {
     Serial.println(F("Card initialised... file access enabled..."));
+    TFTGUI.lvFileBrowser();
     mySd.SDPresent = true;
   }
   ledcAttachPin(TFT_BL, 1);                                // assign TFT_BL pin to channel 1
   ledcSetup(1, 12000UL, 10);                               // 12 kHz PWM, 10-bit resolution
   analogReadResolution(10);
-  ledcWrite(1, 768);                                       // brightness 
+  ledcWrite(1, 768U);                                       // brightness
   Serial.print("\n");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSDI, WIFI_PASS);                         //connect to wifi
   Serial.print("Connecting to ");
   Serial.println(WIFI_SSDI);
   uint8_t wifiRetry = 0;
-  while (WiFi.status() != WL_CONNECTED && wifiRetry++ < 20)
-  {
+  while (WiFi.status() != WL_CONNECTED && wifiRetry++ < 20) {
     delay(500);
   }
-  if (wifiRetry == 21)
-  {
+  if (wifiRetry == 21) {
     Serial.print("Could not connect to");
     Serial.println(WIFI_SSDI);
     ESP.restart();
   }
   Serial.print("Connected! IP address: ");
   Serial.println(WiFi.localIP());
-  guiInIt();                                                       //LIttleVgl GUI init
-  tick.attach_ms(LVGL_TICK_PERIOD, LvTickHandler);                 //Initialize the graphics library's tick
-  if (TFTGUI.initSD())
-  {
-    TFTGUI.lvFileBrowser();
-  }
-  else
-  {
-    TFTGUI.lvErrorPage();
-  }
+  tick.attach_ms(LVGL_TICK_PERIOD, LvTickHandler);                    //Initialize the graphics library's tick
   if (MDNS.begin(host))                                              //MDNS begin
   {
     MDNS.addService("http", "tcp", 80);
@@ -567,4 +554,53 @@ String getContentType(AsyncWebServerRequest *request, String filename)
   else if (filename.endsWith(".mp4"))
     return "video/mp4";
   return "text/plain";
+}
+
+// perform the actual update from a given stream
+void performUpdate(Stream &updateSource, size_t updateSize)
+{
+  if (Update.begin(updateSize)) {
+    size_t written = Update.writeStream(updateSource);
+    if (written == updateSize) {
+      Serial.println("Written : " + String(written) + " successfully");
+    } else {
+      Serial.println("Written only : " + String(written) + "/" + String(updateSize) + ". Retry?");
+    }
+    if (Update.end()) {
+      Serial.println("OTA done!");
+      if (Update.isFinished()) {
+        Serial.println("Update successfully completed. Rebooting.");
+      } else {
+        Serial.println("Update not finished? Something went wrong!");
+      }
+    } else {
+      Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+    }
+  } else {
+    Serial.println("Not enough space to begin OTA");
+  }
+}
+
+// check given FS for valid firmware.bin and perform update if available
+void updateFromFS(fs::FS &fs) {
+  File updateBin = fs.open("/firmware.bin");
+  if (updateBin) {
+    if (updateBin.isDirectory()) {
+      Serial.println("Error, update.bin is not a file");
+      updateBin.close();
+      return;
+    }
+    size_t updateSize = updateBin.size();
+    if (updateSize > 0) {
+      Serial.println("Try to start update");
+      performUpdate(updateBin, updateSize);
+    } else {
+      Serial.println("Error, file is empty");
+    }
+    updateBin.close();
+    // whe finished remove the binary from sd card to indicate end of the process
+    fs.remove("/firmware.bin");
+  } else {
+    Serial.println("Could not load update.bin from sd root");
+  }
 }

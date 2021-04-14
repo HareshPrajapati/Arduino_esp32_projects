@@ -10,6 +10,8 @@
 #define SCREEN_WIDTH (320)
 #define SCREEN_HIGHT (240)
 
+
+
 void myDispFlush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p);
 bool myTouchpadRead(lv_indev_drv_t *indev_driver, lv_indev_data_t *data);
 void guiInIt();
@@ -19,7 +21,7 @@ void goUp(lv_obj_t *obj, lv_event_t event);
 void deleteBtnCb(lv_obj_t *obj, lv_event_t event);
 void shareBtnCb(lv_obj_t *obj, lv_event_t event);
 void fileHandler(lv_obj_t *obj, lv_event_t event);
-static void memoryMonitor(lv_task_t *param);
+extern TFT_eSPI tft;
 extern String nextFile, deleteFile, shareFile ;
 extern lv_obj_t *main_list, *win ;
 extern lv_obj_t *bar;
@@ -35,7 +37,6 @@ private:
     lv_obj_t *slider_label;
 
 public:
-    bool initSD();
     void lvMain();
     void taskFileDownload(void *pvParameters);
     void lvErrorPage();

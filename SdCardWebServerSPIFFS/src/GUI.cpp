@@ -2,11 +2,11 @@
 #include "GUI.h"
 #include <SD.h>
 #include <FS.h>
-extern TFT_Gui TFTGUI;
-String nextFile, deleteFile = "", shareFile = "";
 
+
+
+String nextFile, deleteFile = "", shareFile = "";
 TFT_eSPI tft = TFT_eSPI(); /* TFT instance */
-// TFT_eSPI tft = TFT_eSPI(); /* TFT instance */
 static lv_disp_buf_t disp_buf;
 static lv_color_t buf[LV_HOR_RES_MAX * 10];
 static lv_color_t buf2[LV_HOR_RES_MAX * 10];
@@ -14,6 +14,81 @@ lv_obj_t *main_list, *win ;
 lv_obj_t *bar;
 bool LedShareFileOpen = false;
 File myFile;
+extern TFT_Gui TFTGUI;
+
+
+
+
+
+String TFT_Gui::openFile(String filename)
+{
+  File file = SD.open(filename);
+  if (!file)
+  {
+    file.close();
+    return "";
+  }
+  String textData;
+  while (file.available())
+  {
+    textData += char(file.read());
+  }
+  Serial.println(textData);
+  file.close();
+  return textData;
+}
+
+void TFT_Gui::lvErrorPage()
+{
+  lv_obj_t *label = lv_label_create(lv_scr_act(), NULL);
+  lv_label_set_text(label, "Please check your SD Card");
+  lv_obj_align(label, NULL, LV_ALIGN_CENTER, 0, 0);
+}
+
+void TFT_Gui::refreshList(String fileName)
+{
+  if (list != NULL)
+  {
+    lv_list_clean(list);
+  }
+  File root = SD.open(fileName);
+  File file = root.openNextFile();
+  while (file)
+  {
+    if (file.isDirectory())
+    {
+      nextFile = file.name();
+      int n = nextFile.lastIndexOf('/');
+      int m = nextFile.length();
+      String tempName = nextFile.substring(n, m);
+      lv_obj_t *list_btn = lv_list_add_btn(list, LV_SYMBOL_DIRECTORY, (const char *)tempName.c_str());
+      lv_obj_set_event_cb(list_btn, eventHandler);
+    }
+    else
+    {
+      String nextFile1 = file.name();
+      int n = nextFile1.lastIndexOf('/');
+      int m = nextFile1.length();
+      String tempName = nextFile1.substring(n, m);
+      lv_obj_t *list_btn = lv_list_add_btn(list, LV_SYMBOL_FILE, (const char *)tempName.c_str());
+      lv_obj_set_event_cb(list_btn, fileHandler);
+    }
+    file = root.openNextFile();
+  }
+}
+
+void TFT_Gui::createTab1(lv_obj_t *parent, String fileName)
+{
+  //List Tab
+  lv_page_set_scrl_layout(parent, LV_LAYOUT_PRETTY_TOP);
+  list = lv_list_create(parent, NULL);
+  lv_obj_set_size(list, lv_obj_get_width(parent) - 20, lv_obj_get_height(parent) - 20);
+  lv_obj_align(list, NULL, LV_ALIGN_IN_TOP_LEFT, 10, 10);
+  refreshList(fileName);
+}
+
+/************************************************************************************************************/
+
 
 /* Display flushing */
 void myDispFlush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
@@ -85,86 +160,7 @@ void guiInIt()
   indev_drv.type = LV_INDEV_TYPE_POINTER; /*Touch pad is a pointer-like device*/
   indev_drv.read_cb = myTouchpadRead;   /*Set your driver function*/
   lv_indev_drv_register(&indev_drv);      /*Finally register the driver*/
-  // lv_task_create(memory_monitor, 5000, LV_TASK_PRIO_MID, NULL);
 }
-
-bool TFT_Gui::initSD()
-{
-  if (!SD.begin(SS))
-  {
-    return false;
-  }
-  return true;
-}
-
-String TFT_Gui::openFile(String filename)
-{
-  File file = SD.open(filename);
-  if (!file)
-  {
-    file.close();
-    return "";
-  }
-  String textData;
-  while (file.available())
-  {
-    textData += char(file.read());
-  }
-  Serial.println(textData);
-  file.close();
-  return textData;
-}
-
-void TFT_Gui::lvErrorPage()
-{
-  lv_obj_t *label = lv_label_create(lv_scr_act(), NULL);
-  lv_label_set_text(label, "Please check your SD Card");
-  lv_obj_align(label, NULL, LV_ALIGN_CENTER, 0, 0);
-}
-
-void TFT_Gui::refreshList(String fileName)
-{
-  if (list != NULL)
-  {
-    lv_list_clean(list);
-  }
-  File root = SD.open(fileName);
-  File file = root.openNextFile();
-  while (file)
-  {
-    if (file.isDirectory())
-    {
-      nextFile = file.name();
-      int n = nextFile.lastIndexOf('/');
-      int m = nextFile.length();
-      String tempName = nextFile.substring(n, m);
-      lv_obj_t *list_btn = lv_list_add_btn(list, LV_SYMBOL_DIRECTORY, (const char *)tempName.c_str());
-      lv_obj_set_event_cb(list_btn, eventHandler);
-    }
-    else
-    {
-      String nextFile1 = file.name();
-      int n = nextFile1.lastIndexOf('/');
-      int m = nextFile1.length();
-      String tempName = nextFile1.substring(n, m);
-      lv_obj_t *list_btn = lv_list_add_btn(list, LV_SYMBOL_FILE, (const char *)tempName.c_str());
-      lv_obj_set_event_cb(list_btn, fileHandler);
-    }
-    file = root.openNextFile();
-  }
-}
-
-void TFT_Gui::createTab1(lv_obj_t *parent, String fileName)
-{
-  //List Tab
-  lv_page_set_scrl_layout(parent, LV_LAYOUT_PRETTY_TOP);
-  list = lv_list_create(parent, NULL);
-  lv_obj_set_size(list, lv_obj_get_width(parent) - 20, lv_obj_get_height(parent) - 20);
-  lv_obj_align(list, NULL, LV_ALIGN_IN_TOP_LEFT, 10, 10);
-  refreshList(fileName);
-}
-
-/************************************************************************************************************/
 
 void TFT_Gui::lvFileBrowser(String fileName)
 {
@@ -317,15 +313,4 @@ void shareBtnCb(lv_obj_t *obj, lv_event_t event)
       LedShareFileOpen = true;
     }
   }
-}
-
-
-static void memoryMonitor(lv_task_t *param) {
-  (void)param; /*Unused*/
-
-  lv_mem_monitor_t mon;
-  lv_mem_monitor(&mon);
-  printf("used: %6d (%3d %%), frag: %3d %%, biggest free: %6d\n",
-         (int)mon.total_size - mon.free_size, mon.used_pct, mon.frag_pct,
-         (int)mon.free_biggest_size);
 }
